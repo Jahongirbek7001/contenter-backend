@@ -15,3 +15,17 @@ uv run ruff check . && uv run mypy app tests && uv run pytest
 ```
 
 Environment variables (`.env`, never committed): `DATABASE_URL`, `REDIS_URL`, `GEMINI_API_KEY`, `GCP_PROJECT_ID`, `GCP_LOCATION`, `GOOGLE_APPLICATION_CREDENTIALS`, `TELEGRAM_BOT_TOKEN`.
+
+Tests need the compose Postgres and a `contentor_test` database (created once):
+
+```bash
+docker compose exec postgres psql -U contentor -c "CREATE DATABASE contentor_test;"
+```
+
+Migrations: `DATABASE_URL=... uv run alembic upgrade head`.
+
+## Structure
+
+- `app/models` — SQLAlchemy models; `migrations/` — Alembic (schema + catalog seed).
+- `app/domain/credits` — ⚡ ledger: holds, spend, release, payment crediting (idempotent, trial once).
+- `app/gateway` — provider contracts, capabilities, product→model registry, fake provider.
