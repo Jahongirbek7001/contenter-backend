@@ -5,18 +5,16 @@ Never prints key values.
 """
 
 import sys
-from pathlib import Path
 
 import google.auth
 import httpx
 from google import genai
 from google.auth.credentials import Credentials
 from google.auth.transport.requests import Request
-from google.oauth2 import service_account
 
 from app.core.config import Settings, get_settings
+from app.gateway.google_clients import CLOUD_SCOPE, vertex_credentials
 
-CLOUD_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 MODEL_KEYWORDS = ("omni", "veo", "hydrogen", "lyria", "image", "banana")
 VERTEX_VEO_CANDIDATES = (
     "veo-3.1-lite-generate-001",
@@ -44,15 +42,9 @@ def check_gemini_api(settings: Settings) -> bool:
 
 
 def load_vertex_credentials(settings: Settings) -> Credentials:
-    if settings.google_application_credentials:
-        path = Path(settings.google_application_credentials)
-        if not path.is_file():
-            raise FileNotFoundError(f"service account file not found: {path}")
-        creds: Credentials = service_account.Credentials.from_service_account_file(
-            str(path),
-            scopes=[CLOUD_SCOPE],  # type: ignore[no-untyped-call]
-        )
-        return creds
+    service_account_credentials = vertex_credentials(settings)
+    if service_account_credentials is not None:
+        return service_account_credentials
     adc, _ = google.auth.default(scopes=[CLOUD_SCOPE])
     return adc
 
