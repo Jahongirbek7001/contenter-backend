@@ -181,6 +181,10 @@ async def test_lyria_returns_mp3_at_flat_price() -> None:
     assert result.cost_usd == Decimal("0.04")
 
 
+def operation(**fields: object) -> types.GenerateVideosOperation:
+    return types.GenerateVideosOperation.model_validate({"name": "op-1", **fields})
+
+
 def veo_request() -> VideoRequest:
     return VideoRequest(
         prompt="escalator",
@@ -192,14 +196,11 @@ def veo_request() -> VideoRequest:
 
 
 async def test_veo_waits_for_operation_and_prices_by_second() -> None:
-    done = types.GenerateVideosOperation(
-        name="op-1",
+    done = operation(
         done=True,
-        response=types.GenerateVideosResponse(
-            generated_videos=[types.GeneratedVideo(video=types.Video(video_bytes=b"veo"))]
-        ),
+        response={"generated_videos": [{"video": {"video_bytes": b64(b"veo")}}]},
     )
-    api = StubOperations(types.GenerateVideosOperation(name="op-1", done=False), done)
+    api = StubOperations(operation(done=False), done)
 
     result = await VeoVideoProvider(api, VEO).generate(veo_request())
 
@@ -212,12 +213,9 @@ async def test_veo_waits_for_operation_and_prices_by_second() -> None:
 
 
 async def test_veo_safety_filtered_result_is_blocked() -> None:
-    filtered = types.GenerateVideosOperation(
-        name="op-1",
+    filtered = operation(
         done=True,
-        response=types.GenerateVideosResponse(
-            rai_media_filtered_count=1, rai_media_filtered_reasons=["person"]
-        ),
+        response={"rai_media_filtered_count": 1, "rai_media_filtered_reasons": ["person"]},
     )
 
     with pytest.raises(ProviderBlockedError):

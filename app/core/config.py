@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     telegram_bot_token: SecretStr
 
+    # Site origins allowed to call the API from the browser (JSON list in .env).
+    cors_origins: list[str] = ["http://localhost:3000"]
+
 
 @lru_cache
 def get_settings() -> Settings:
