@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr
     gcp_project_id: str
     gcp_location: str
+    # Service account key path; None means Application Default Credentials (gcloud login).
+    google_application_credentials: str | None = None
 
     telegram_bot_token: SecretStr
 
