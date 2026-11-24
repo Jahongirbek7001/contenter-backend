@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr
     gcp_project_id: str
     gcp_location: str
+    # Service account key path; None means Application Default Credentials (gcloud login).
+    google_application_credentials: str | None = None
 
     telegram_bot_token: SecretStr
+
+    # Site origins allowed to call the API from the browser (JSON list in .env).
+    cors_origins: list[str] = ["http://localhost:3000"]
 
 
 @lru_cache

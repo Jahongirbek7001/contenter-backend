@@ -21,6 +21,7 @@ outputs/
 *.mp4
 *.wav
 scripts/model_probe/assets/
+scripts/model_probe/out/
 
 # OS / IDE
 .DS_Store
