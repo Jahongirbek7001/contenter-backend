@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Site origins allowed to call the API from the browser (JSON list in .env).
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # True in production (HTTPS); local development runs over plain http.
+    admin_cookie_secure: bool = False
+
 
 @lru_cache
 def get_settings() -> Settings:

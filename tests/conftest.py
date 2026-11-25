@@ -18,7 +18,10 @@ TEST_DATABASE_URL = os.environ.get(
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 # Tables filled by tests; seeded catalog tables (prices, packs, routes) are kept.
-TEST_DATA_TABLES = "credit_ledger, credit_holds, payments, generations, music_tracks, users"
+TEST_DATA_TABLES = (
+    "credit_ledger, credit_holds, payments, generations, music_tracks, users, "
+    "admin_sessions, admin_users"
+)
 
 
 @pytest.fixture(scope="session", autouse=True)

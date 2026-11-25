@@ -13,8 +13,8 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin
-from app.models.enums import Product, Resolution
-from app.models.types import PRODUCT, RESOLUTION
+from app.models.enums import Product, Resolution, TrendAudience, TrendBadge
+from app.models.types import PRODUCT, RESOLUTION, TREND_AUDIENCE, TREND_BADGE
 
 
 class ProductPrice(Base):
@@ -59,9 +59,18 @@ class TrendTemplate(CreatedAtMixin, Base):
     title_uz: Mapped[str] = mapped_column(String(128), nullable=False)
     title_ru: Mapped[str] = mapped_column(String(128), nullable=False)
     category: Mapped[str] = mapped_column(String(64), nullable=False)
+    audience: Mapped[TrendAudience] = mapped_column(
+        TREND_AUDIENCE, server_default=TrendAudience.ALL.value, nullable=False
+    )
+    badge: Mapped[TrendBadge] = mapped_column(
+        TREND_BADGE, server_default=TrendBadge.NONE.value, nullable=False
+    )
     preview_storage_key: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    # Telegram file_id of the preview video once it has been sent through the bot.
+    preview_file_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     prompt_skeleton: Mapped[str] = mapped_column(Text, nullable=False)
     first_frame_instructions: Mapped[str] = mapped_column(Text, nullable=False)
+    music_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true(), nullable=False)
 

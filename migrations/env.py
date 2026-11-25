@@ -7,6 +7,7 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from app.core.config import get_settings
 from app.models import Base
 
 config = context.config
@@ -18,11 +19,11 @@ target_metadata = Base.metadata
 
 
 def database_url() -> str:
-    # Tests pass the URL through the Alembic config; everything else uses the environment.
+    # Tests pass the URL through the Alembic config; otherwise the environment, then .env.
     configured = config.get_main_option("sqlalchemy.url")
     if configured:
         return configured
-    return os.environ["DATABASE_URL"]
+    return os.environ.get("DATABASE_URL") or get_settings().database_url
 
 
 def run_migrations_offline() -> None:

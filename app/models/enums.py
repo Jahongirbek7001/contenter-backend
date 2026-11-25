@@ -51,3 +51,22 @@ class PaymentStatus(StrEnum):
     PENDING = "pending"
     PAID = "paid"
     CANCELLED = "cancelled"
+
+
+class AdminRole(StrEnum):
+    OWNER = "owner"
+    ADMIN = "admin"
+    SUPPORT = "support"
+
+
+class TrendBadge(StrEnum):
+    NONE = "none"
+    HOT = "hot"
+    NEW = "new"
+    TOP = "top"
+
+
+class TrendAudience(StrEnum):
+    ALL = "all"
+    WOMEN = "women"
+    MEN = "men"

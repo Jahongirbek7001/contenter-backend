@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin import router as admin_router
 from app.api.catalog import router as catalog_router
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
@@ -19,8 +20,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await engine.dispose()
 
 
-def create_app(cors_origins: list[str]) -> FastAPI:
+def create_app(cors_origins: list[str], admin_cookie_secure: bool = False) -> FastAPI:
     app = FastAPI(title="Contentor AI", lifespan=lifespan)
+    app.state.admin_cookie_secure = admin_cookie_secure
     app.add_middleware(
         CORSMiddleware,
         allow_origins=cors_origins,
@@ -34,7 +36,9 @@ def create_app(cors_origins: list[str]) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(catalog_router)
+    app.include_router(admin_router)
     return app
 
 
-app = create_app(get_settings().cors_origins)
+_settings = get_settings()
+app = create_app(_settings.cors_origins, _settings.admin_cookie_secure)
