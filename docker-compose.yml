@@ -6,7 +6,7 @@ services:
       POSTGRES_PASSWORD: contentor
       POSTGRES_DB: contentor
     ports:
-      - "5432:5432"
+      - "15433:5432"  # 5432 falls in a Windows reserved port range
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

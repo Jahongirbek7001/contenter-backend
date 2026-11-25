@@ -2,6 +2,7 @@
 
 from app.models.base import pg_enum
 from app.models.enums import (
+    AdminRole,
     GenerationStatus,
     HoldStatus,
     Language,
@@ -10,6 +11,8 @@ from app.models.enums import (
     PaymentStatus,
     Product,
     Resolution,
+    TrendAudience,
+    TrendBadge,
 )
 
 LANGUAGE = pg_enum(Language, "language")
@@ -20,3 +23,6 @@ LEDGER_KIND = pg_enum(LedgerKind, "ledger_kind")
 HOLD_STATUS = pg_enum(HoldStatus, "hold_status")
 PAYMENT_PROVIDER = pg_enum(PaymentProvider, "payment_provider")
 PAYMENT_STATUS = pg_enum(PaymentStatus, "payment_status")
+ADMIN_ROLE = pg_enum(AdminRole, "admin_role")
+TREND_BADGE = pg_enum(TrendBadge, "trend_badge")
+TREND_AUDIENCE = pg_enum(TrendAudience, "trend_audience")

@@ -17,9 +17,21 @@ class Settings(BaseSettings):
     google_application_credentials: str | None = None
 
     telegram_bot_token: SecretStr
+    telegram_bot_username: str = "contentorai_bot"
+
+    # User photos and cached music; object storage replaces this when the worker moves hosts.
+    media_dir: str = "var/media"
+    ffmpeg_path: str = "ffmpeg"
 
     # Site origins allowed to call the API from the browser (JSON list in .env).
     cors_origins: list[str] = ["http://localhost:3000"]
+
+    # True in production (HTTPS); local development runs over plain http.
+    admin_cookie_secure: bool = False
+
+    # LOCAL DEVELOPMENT ONLY: lets the mini app run in a normal browser (no Telegram
+    # initData) as this Telegram user. Must stay unset in production.
+    miniapp_dev_telegram_id: int | None = None
 
 
 @lru_cache

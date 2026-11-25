@@ -12,6 +12,7 @@ dependencies = [
     "google-genai>=2.34.0",
     "httpx>=0.28.1",
     "pydantic-settings>=2.16.3",
+    "python-multipart>=0.0.34",
     "redis>=5.3.1",
     "sqlalchemy[asyncio]>=2.1.9",
     "structlog>=26.1.0",
@@ -34,7 +35,8 @@ target-version = "py312"
 select = ["E", "F", "I", "B", "UP", "ASYNC", "SIM", "RUF"]
 
 [tool.ruff.lint.per-file-ignores]
-"migrations/versions/*" = ["E501"]
+"migrations/versions/*" = ["E501", "RUF001"]  # seed data holds Russian titles
+"app/bot/texts.py" = ["E501", "RUF001"]  # user-facing Russian copy
 
 [tool.mypy]
 python_version = "3.12"

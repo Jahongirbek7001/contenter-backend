@@ -230,3 +230,19 @@ async def test_veo_cannot_extend() -> None:
 def test_safety_message_detection_ignores_unrelated_words() -> None:
     assert is_safety_message("Request blocked: violates usage policies")
     assert not is_safety_message("constraint violated: training quota exceeded")
+
+
+def test_sdk_interactions_keeps_client_alive() -> None:
+    import gc
+    import weakref
+
+    from google import genai
+
+    client = genai.Client(api_key="test-key")
+    ref = weakref.ref(client)
+    wrapper = google_clients.SdkInteractions(client)
+    del client
+    gc.collect()
+
+    assert ref() is not None, "client was collected; its HTTP session would be closed"
+    assert wrapper is not None
