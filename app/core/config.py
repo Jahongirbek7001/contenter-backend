@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # True in production (HTTPS); local development runs over plain http.
     admin_cookie_secure: bool = False
 
+    # LOCAL DEVELOPMENT ONLY: lets the mini app run in a normal browser (no Telegram
+    # initData) as this Telegram user. Must stay unset in production.
+    miniapp_dev_telegram_id: int | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
