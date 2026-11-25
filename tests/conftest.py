@@ -13,7 +13,7 @@ from app.core.db import create_engine, create_session_factory
 
 TEST_DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL",
-    "postgresql+asyncpg://contentor:contentor@localhost:5432/contentor_test",
+    "postgresql+asyncpg://contentor:contentor@localhost:15433/contentor_test",
 )
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 

@@ -40,6 +40,9 @@ class InteractionsApi(Protocol):
 
 class SdkInteractions:
     def __init__(self, client: genai.Client) -> None:
+        # Hold the client itself: when it is garbage-collected it closes the shared HTTP
+        # session, and every later request fails with "client has been closed".
+        self._client = client
         self._api = client.aio.interactions
 
     async def create(self, body: RequestBody) -> Interaction:
