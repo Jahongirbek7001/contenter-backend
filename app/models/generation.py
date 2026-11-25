@@ -36,6 +36,8 @@ class Generation(CreatedAtMixin, Base):
         ForeignKey("generations.id"), nullable=True
     )
     user_input: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Key of the user's photo in the media store; the file is deleted after a retention window.
+    input_media_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     script: Mapped[str | None] = mapped_column(Text, nullable=True)
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True)

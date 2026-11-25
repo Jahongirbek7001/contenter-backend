@@ -28,3 +28,6 @@ scripts/model_probe/out/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local media (user photos, generated assets)
+var/

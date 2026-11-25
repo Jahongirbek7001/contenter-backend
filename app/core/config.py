@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     google_application_credentials: str | None = None
 
     telegram_bot_token: SecretStr
+    telegram_bot_username: str = "contentorai_bot"
+
+    # User photos and cached music; object storage replaces this when the worker moves hosts.
+    media_dir: str = "var/media"
+    ffmpeg_path: str = "ffmpeg"
 
     # Site origins allowed to call the API from the browser (JSON list in .env).
     cors_origins: list[str] = ["http://localhost:3000"]

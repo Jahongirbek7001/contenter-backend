@@ -1,4 +1,6 @@
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Identity, false
+from datetime import datetime
+
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin
@@ -15,3 +17,7 @@ class User(CreatedAtMixin, Base):
     referrer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     trial_used: Mapped[bool] = mapped_column(Boolean, server_default=false(), nullable=False)
     is_blocked: Mapped[bool] = mapped_column(Boolean, server_default=false(), nullable=False)
+    # Set when the user accepts the usage rules shown before the first generation.
+    rules_accepted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

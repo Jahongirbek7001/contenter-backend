@@ -1,0 +1,72 @@
+"""Background generations (arq + Redis).
+
+uv run arq app.worker.WorkerSettings
+"""
+
+from functools import partial
+from pathlib import Path
+from typing import Any, ClassVar
+
+from aiogram import Bot
+from arq import cron
+from arq.connections import RedisSettings
+
+from app.bot.notifier import TelegramNotifier
+from app.core.config import get_settings
+from app.core.db import create_engine, create_session_factory
+from app.domain.generations.cleanup import delete_expired_photos
+from app.domain.generations.trend import TrendPipeline, run_trend_generation
+from app.gateway.factory import build_google_providers
+from app.media.ffmpeg import compose_trend_video
+from app.media.store import LocalMediaStore
+
+Context = dict[str, Any]
+
+
+async def startup(ctx: Context) -> None:
+    settings = get_settings()
+    engine = create_engine(settings.database_url)
+    session_factory = create_session_factory(engine)
+    store = LocalMediaStore(Path(settings.media_dir))
+    providers = build_google_providers(settings)
+    bot = Bot(settings.telegram_bot_token.get_secret_value())
+    ctx["engine"] = engine
+    ctx["bot"] = bot
+    ctx["store"] = store
+    ctx["session_factory"] = session_factory
+    ctx["pipeline"] = TrendPipeline(
+        session_factory=session_factory,
+        text=providers.text,
+        image=providers.image,
+        music=providers.music,
+        videos=providers.videos,
+        store=store,
+        notifier=TelegramNotifier(bot, settings.telegram_bot_username),
+        compose=partial(compose_trend_video, ffmpeg=settings.ffmpeg_path),
+    )
+
+
+async def shutdown(ctx: Context) -> None:
+    await ctx["bot"].session.close()
+    await ctx["engine"].dispose()
+
+
+async def trend_generation(ctx: Context, generation_id: int) -> str | None:
+    outcome = await run_trend_generation(ctx["pipeline"], generation_id)
+    return None if outcome is None else outcome.value
+
+
+async def cleanup_photos(ctx: Context) -> int:
+    return await delete_expired_photos(ctx["session_factory"], ctx["store"])
+
+
+class WorkerSettings:
+    functions: ClassVar = [trend_generation]
+    cron_jobs: ClassVar = [cron(cleanup_photos, minute={0, 30})]
+    on_startup = startup
+    on_shutdown = shutdown
+    redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
+    # Veo alone takes ~2 minutes; retries happen inside the pipeline, not by re-running jobs.
+    job_timeout = 900
+    max_tries = 1
+    max_jobs = 4
