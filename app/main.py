@@ -5,6 +5,7 @@ uv run uvicorn app.main:app --reload
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from functools import partial
 from pathlib import Path
 
 from arq import create_pool
@@ -18,6 +19,8 @@ from app.api.miniapp import router as miniapp_router
 from app.api.miniapp.deps import MiniAppAuth
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
+from app.gateway.factory import build_google_providers
+from app.media.ffmpeg import make_preview
 from app.media.store import LocalMediaStore
 
 
@@ -29,6 +32,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.session_factory = create_session_factory(engine)
     app.state.arq = arq
     app.state.media_store = LocalMediaStore(Path(settings.media_dir))
+    app.state.transcode = partial(make_preview, ffmpeg=settings.ffmpeg_path)
+    app.state.music_provider = build_google_providers(settings).music
     app.state.miniapp_auth = MiniAppAuth(
         bot_token=settings.telegram_bot_token.get_secret_value(),
         dev_telegram_id=settings.miniapp_dev_telegram_id,

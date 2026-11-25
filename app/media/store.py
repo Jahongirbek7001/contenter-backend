@@ -31,6 +31,11 @@ class LocalMediaStore:
     async def delete(self, key: str) -> None:
         self._path(key).unlink(missing_ok=True)
 
+    def local_path(self, key: str) -> Path:
+        """For range-capable file responses (iOS needs ranges to play video). Object
+        storage will hand out URLs instead."""
+        return self._path(key)
+
     def _path(self, key: str) -> Path:
         relative = PurePosixPath(key)
         if relative.is_absolute() or ".." in relative.parts or not relative.parts:

@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, s
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.api.media import preview_url
 from app.api.miniapp.deps import MiniAppUserDep, SessionDep
 from app.domain.credits.errors import InsufficientCreditsError
 from app.domain.credits.service import get_balance
@@ -46,6 +47,7 @@ class TrendCard(BaseModel):
     category: str
     audience: TrendAudience
     badge: TrendBadge
+    preview_url: str | None
 
 
 class GenerationOut(BaseModel):
@@ -118,6 +120,7 @@ async def list_trends(session: SessionDep, _: MiniAppUserDep) -> list[TrendCard]
             category=trend.category,
             audience=trend.audience,
             badge=trend.badge,
+            preview_url=preview_url(trend.id, trend.preview_storage_key),
         )
         for trend in trends
     ]

@@ -7,7 +7,7 @@ from aiogram import Bot, F, Router
 from aiogram.filters import CommandObject, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InaccessibleMessage, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InaccessibleMessage, Message
 from aiogram.types import User as TelegramUser
 from arq.connections import ArqRedis
 from sqlalchemy import select
@@ -135,6 +135,7 @@ async def _active_trends(session: AsyncSession, audience: TrendAudience) -> list
 async def _show_card(
     target: Message,
     session_factory: async_sessionmaker[AsyncSession],
+    store: MediaStore,
     telegram_user: TelegramUser,
     audience: TrendAudience,
     index: int,
@@ -164,16 +165,43 @@ async def _show_card(
         await target.delete()
     if trend.preview_file_id:
         await target.answer_video(trend.preview_file_id, caption=caption, reply_markup=keyboard)
+    elif trend.preview_storage_key:
+        # First showing after an upload: send the file once, then reuse Telegram's file_id.
+        preview = await store.load(trend.preview_storage_key)
+        sent = await target.answer_video(
+            BufferedInputFile(preview, filename=f"{trend.slug}.mp4"),
+            caption=caption,
+            reply_markup=keyboard,
+            width=720,
+            height=1280,
+            supports_streaming=True,
+        )
+        if sent.video is not None:
+            await _remember_preview(session_factory, trend.id, trend.preview_storage_key, sent)
     else:
         await target.answer(caption, reply_markup=keyboard)
 
 
+async def _remember_preview(
+    session_factory: async_sessionmaker[AsyncSession], trend_id: int, key: str, sent: Message
+) -> None:
+    if sent.video is None:
+        return
+    async with session_factory() as session, session.begin():
+        trend = await session.get(TrendTemplate, trend_id, with_for_update=True)
+        # Skip if the preview was replaced while we were uploading.
+        if trend is not None and trend.preview_storage_key == key:
+            trend.preview_file_id = sent.video.file_id
+
+
 @router.message(F.text.in_(_menu_texts("menu_trends")))
-async def trends_menu(message: Message, session_factory: async_sessionmaker[AsyncSession]) -> None:
+async def trends_menu(
+    message: Message, session_factory: async_sessionmaker[AsyncSession], store: MediaStore
+) -> None:
     if message.from_user is None:
         return
     await _show_card(
-        message, session_factory, message.from_user, TrendAudience.ALL, 0, replace=False
+        message, session_factory, store, message.from_user, TrendAudience.ALL, 0, replace=False
     )
 
 
@@ -182,6 +210,7 @@ async def gallery(
     query: CallbackQuery,
     callback_data: GalleryCb,
     session_factory: async_sessionmaker[AsyncSession],
+    store: MediaStore,
 ) -> None:
     await query.answer()
     if not isinstance(query.message, Message):
@@ -189,6 +218,7 @@ async def gallery(
     await _show_card(
         query.message,
         session_factory,
+        store,
         query.from_user,
         callback_data.audience,
         callback_data.index,

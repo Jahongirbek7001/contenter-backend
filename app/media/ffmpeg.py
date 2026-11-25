@@ -24,8 +24,64 @@ AUDIO_ARGS = ("-c:a", "aac", "-b:a", "128k")
 MUSIC_FADE_SECONDS = 1.0
 
 
+# Catalog previews autoplay muted in a grid, so they are small, silent and short.
+PREVIEW_ARGS = (
+    "-vf",
+    "scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280",
+    "-c:v",
+    "libx264",
+    "-preset",
+    "medium",
+    "-crf",
+    "28",
+    "-maxrate",
+    "2M",
+    "-bufsize",
+    "4M",
+    "-pix_fmt",
+    "yuv420p",
+    "-an",
+)
+PREVIEW_MAX_SECONDS = 10
+
+
 class FfmpegError(RuntimeError):
     pass
+
+
+async def _run(args: list[str]) -> None:
+    process = await asyncio.create_subprocess_exec(
+        *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
+    )
+    _, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise FfmpegError(stderr.decode(errors="replace")[-2000:])
+
+
+async def make_preview(video: bytes, ffmpeg: str = "ffmpeg") -> bytes:
+    """Any uploaded clip -> 720x1280 silent H.264, at most 10 s, ready for streaming."""
+    with tempfile.TemporaryDirectory(prefix="contentor-") as workdir:
+        root = Path(workdir)
+        source = root / "source"
+        source.write_bytes(video)
+        out_path = root / "preview.mp4"
+        await _run(
+            [
+                ffmpeg,
+                "-y",
+                "-loglevel",
+                "error",
+                "-i",
+                str(source),
+                "-t",
+                str(PREVIEW_MAX_SECONDS),
+                *PREVIEW_ARGS,
+                "-movflags",
+                "+faststart",
+                str(out_path),
+            ]
+        )
+        return out_path.read_bytes()
 
 
 async def compose_trend_video(
@@ -58,11 +114,5 @@ async def compose_trend_video(
         else:
             args += ["-map", "0:v:0", "-an"]
         args += [*VIDEO_ARGS, "-movflags", "+faststart", str(out_path)]
-
-        process = await asyncio.create_subprocess_exec(
-            *args, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.PIPE
-        )
-        _, stderr = await process.communicate()
-        if process.returncode != 0:
-            raise FfmpegError(stderr.decode(errors="replace")[-2000:])
+        await _run(args)
         return out_path.read_bytes()
