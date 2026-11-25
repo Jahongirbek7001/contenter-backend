@@ -13,6 +13,7 @@ from app.domain.generations.start import (
     InvalidPhotoError,
     PriceUnavailableError,
     TemplateUnavailableError,
+    UserBlockedError,
     start_trend_generation,
     trend_price,
 )
@@ -185,6 +186,9 @@ async def create_generation(
     except InvalidPhotoError as exc:
         await session.rollback()
         raise _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_photo") from exc
+    except UserBlockedError as exc:
+        await session.rollback()
+        raise _error(status.HTTP_403_FORBIDDEN, "blocked") from exc
     await request.app.state.arq.enqueue_job(
         TREND_JOB, generation.id, _job_id=f"generation:{generation.id}"
     )

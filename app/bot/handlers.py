@@ -22,6 +22,7 @@ from app.domain.generations.start import (
     MAX_PHOTO_BYTES,
     InvalidPhotoError,
     TemplateUnavailableError,
+    UserBlockedError,
     photo_mime_type,
     start_trend_generation,
     trend_price,
@@ -296,6 +297,9 @@ async def _queue(
             return False
         except InvalidPhotoError:
             await message.answer(t(language, "not_a_photo"))
+            return False
+        except UserBlockedError:
+            await message.answer(t(language, "blocked"))
             return False
     await arq.enqueue_job(TREND_JOB, generation.id, _job_id=f"generation:{generation.id}")
     await message.answer(t(language, "started"))

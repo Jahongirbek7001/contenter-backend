@@ -67,6 +67,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "failed_blocked": "Uzr, bu safar o'xshamadi — xavfsizlik filtri videoni to'xtatdi. ⚡ qaytarildi.",
         "failed_failed": "Uzr, texnik xato bo'ldi. ⚡ qaytarildi, birozdan keyin qayta urinib ko'ring.",
         "failed_refund_note": "⚡ yechilmadi.",
+        "blocked": "Hisobingiz cheklangan. Savollar bo'lsa, qo'llab-quvvatlashga yozing.",
     },
     Language.RU: {
         "choose_language": "Tilni tanlang · Выберите язык",
@@ -132,6 +133,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "failed_blocked": "Извините, в этот раз не получилось — фильтр безопасности остановил видео. ⚡ возвращены.",
         "failed_failed": "Извините, произошла техническая ошибка. ⚡ возвращены, попробуйте чуть позже.",
         "failed_refund_note": "⚡ не списаны.",
+        "blocked": "Ваш аккаунт ограничен. Если есть вопросы, напишите в поддержку.",
     },
 }
 

@@ -226,10 +226,10 @@ async def _retry[T](pipeline: TrendPipeline, call: Callable[[], Awaitable[T]]) -
     for attempt in range(1, PROVIDER_ATTEMPTS + 1):
         try:
             return await call()
-        except ProviderFailedError:
+        except ProviderFailedError as exc:
             if attempt == PROVIDER_ATTEMPTS:
                 raise
-            log.warning("provider call failed, retrying", attempt=attempt)
+            log.warning("provider call failed, retrying", attempt=attempt, error=str(exc))
             await asyncio.sleep(pipeline.retry_delay_seconds * attempt)
     raise AssertionError("unreachable")
 
@@ -278,8 +278,12 @@ async def _music_for(pipeline: TrendPipeline, job: _Job) -> tuple[bytes | None, 
             pipeline,
             lambda: pipeline.music.compose(MUSIC_PROMPT_TEMPLATE.format(mood=job.music_mood)),
         )
-    except (ProviderBlockedError, ProviderFailedError):
-        log.warning("music failed, sending without music", generation_id=job.generation_id)
+    except (ProviderBlockedError, ProviderFailedError) as exc:
+        log.warning(
+            "music failed, sending without music",
+            generation_id=job.generation_id,
+            error=f"{type(exc).__name__}: {exc}",
+        )
         return None, Decimal(0)
     key = f"music/{job.template_id}/{uuid.uuid4().hex}.mp3"
     await pipeline.store.save(key, track.data)
