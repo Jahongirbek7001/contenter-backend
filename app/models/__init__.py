@@ -11,6 +11,8 @@ from app.models.catalog import (
 from app.models.credit import CreditHold, CreditLedgerEntry
 from app.models.generation import Generation
 from app.models.payment import Payment
+from app.models.promo import PromoCode, PromoRedemption
+from app.models.site import SiteSession
 from app.models.user import User
 
 __all__ = [
@@ -25,7 +27,10 @@ __all__ = [
     "Pack",
     "Payment",
     "ProductPrice",
+    "PromoCode",
+    "PromoRedemption",
     "ScriptStyle",
+    "SiteSession",
     "TrendTemplate",
     "User",
 ]

@@ -21,3 +21,7 @@ class User(CreatedAtMixin, Base):
     rules_accepted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Set when the invited user's first purchase paid out the referral bonus to both sides.
+    referral_rewarded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )

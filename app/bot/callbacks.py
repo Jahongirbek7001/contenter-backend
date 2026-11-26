@@ -58,3 +58,16 @@ class OptionAction(StrEnum):
 
 class OptionCb(CallbackData, prefix="opt"):
     action: OptionAction
+
+
+class BuyCb(CallbackData, prefix="buy"):
+    pack_id: int
+
+
+class ShopAction(StrEnum):
+    PROMO = "promo"
+    INVITE = "inv"
+
+
+class ShopCb(CallbackData, prefix="shop"):
+    action: ShopAction

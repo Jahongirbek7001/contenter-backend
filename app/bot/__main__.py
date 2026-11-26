@@ -15,6 +15,8 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from app.bot.handlers import router
+from app.bot.shop import ShopConfig
+from app.bot.shop import router as shop_router
 from app.bot.spoken import router as spoken_router
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
@@ -31,6 +33,7 @@ async def main() -> None:
     dispatcher = Dispatcher(storage=RedisStorage.from_url(settings.redis_url))
     # The main router goes first: its reply-menu buttons must work from any step.
     dispatcher.include_router(router)
+    dispatcher.include_router(shop_router)
     dispatcher.include_router(spoken_router)
     engine = create_engine(settings.database_url)
     arq = await create_pool(RedisSettings.from_dsn(settings.redis_url))
@@ -42,6 +45,11 @@ async def main() -> None:
             store=LocalMediaStore(Path(settings.media_dir)),
             arq=arq,
             text_provider=build_google_providers(settings).text,
+            shop_config=ShopConfig(
+                bot_username=settings.telegram_bot_username,
+                site_url=settings.site_url.rstrip("/"),
+                support_contact=settings.support_contact,
+            ),
         )
     finally:
         await arq.aclose()

@@ -3,6 +3,7 @@ import re
 import pytest
 
 from app.bot.callbacks import (
+    BuyCb,
     GalleryCb,
     OptionAction,
     OptionCb,
@@ -11,14 +12,24 @@ from app.bot.callbacks import (
     ResolutionCb,
     ScriptAction,
     ScriptCb,
+    ShopAction,
+    ShopCb,
     SpokenRulesCb,
     StyleCb,
 )
-from app.bot.keyboards import gallery_keyboard, resolution_keyboard, result_keyboard
-from app.bot.notifier import failure_text
+from app.bot.keyboards import (
+    gallery_keyboard,
+    resolution_keyboard,
+    result_keyboard,
+    shop_keyboard,
+)
+from app.bot.notifier import failure_text, paid_text
+from app.bot.shop import _pack_id
 from app.bot.spoken import _menu_product
 from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.generations.trend import Outcome, RejectReason
+from app.domain.payments.notify import Notice
+from app.models import Pack
 from app.models.enums import Language, Product, Resolution, TrendAudience
 
 PLACEHOLDER = re.compile(r"{(\w+)}")
@@ -94,3 +105,50 @@ def test_menu_buttons_are_never_taken_as_free_text() -> None:
             assert t(language, key) in MENU_TEXTS
     assert _menu_product(t(Language.RU, "menu_series")) is Product.SERIES
     assert _menu_product("Salom") is None
+
+
+def test_shop_lists_only_star_priced_packs_and_fits_callback_limit() -> None:
+    priced = Pack(
+        id=2**31,
+        code="start",
+        title_uz="Start",
+        title_ru="Старт",
+        price_uzs=1,
+        price_stars=210,
+        credits=5,
+        bonus_credits=1,
+        is_one_time=False,
+    )
+    site_only = Pack(
+        id=3,
+        code="pro",
+        title_uz="Pro",
+        title_ru="Про",
+        price_uzs=1,
+        price_stars=None,
+        credits=100,
+        bonus_credits=0,
+        is_one_time=False,
+    )
+    keyboard = shop_keyboard(Language.RU, [priced, site_only])
+    buttons = [button for row in keyboard.inline_keyboard for button in row]
+
+    assert buttons[0].text == "Старт · 6 ⚡ — 210 ⭐"
+    assert len(keyboard.inline_keyboard) == 2
+    for button in buttons:
+        assert len((button.callback_data or "").encode()) <= 64
+    assert BuyCb.unpack(buttons[0].callback_data or "").pack_id == 2**31
+    assert ShopCb.unpack(buttons[1].callback_data or "").action is ShopAction.PROMO
+
+
+def test_stars_payload_round_trip() -> None:
+    assert _pack_id("pack:12") == 12
+    assert _pack_id("pack:x") is None
+    assert _pack_id("generation:1") is None
+
+
+def test_paid_message_mentions_referral_bonus() -> None:
+    notice = Notice(chat_id=1, language=Language.UZ, credits=5, available=7, referral_bonus=2)
+    text = paid_text(notice)
+    assert "+5 ⚡" in text and "+2 ⚡" in text and "7 ⚡" in text
+    assert "+2" not in paid_text(Notice(chat_id=1, language=Language.RU, credits=5, available=5))

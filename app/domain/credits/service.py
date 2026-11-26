@@ -82,8 +82,14 @@ async def release_hold(session: AsyncSession, generation_id: int) -> None:
     await session.flush()
 
 
-async def credit_payment(session: AsyncSession, payment: Payment, pack: Pack) -> bool:
-    """Credit a confirmed payment once. Returns False if it was already credited."""
+async def credit_payment(
+    session: AsyncSession, payment: Payment, pack: Pack, *, enforce_one_time: bool = True
+) -> bool:
+    """Credit a confirmed payment once. Returns False if it was already credited.
+
+    Providers check the one-time pack before taking money; once money is taken,
+    `enforce_one_time=False` credits it even if a parallel trial order won the race.
+    """
     user = await _lock_user(session, payment.user_id)
     already_credited = await session.scalar(
         select(CreditLedgerEntry.id).where(
@@ -94,7 +100,7 @@ async def credit_payment(session: AsyncSession, payment: Payment, pack: Pack) ->
     if already_credited is not None:
         return False
     if pack.is_one_time:
-        if user.trial_used:
+        if user.trial_used and enforce_one_time:
             raise TrialAlreadyUsedError(user.id)
         user.trial_used = True
     session.add(

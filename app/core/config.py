@@ -29,6 +29,24 @@ class Settings(BaseSettings):
     # True in production (HTTPS); local development runs over plain http.
     admin_cookie_secure: bool = False
 
+    # Public site address; Payme/Click send the customer back here after paying.
+    site_url: str = "http://localhost:3000"
+
+    # Shown by /paysupport (Telegram requires it for Stars), e.g. "@contentor_support".
+    # Unset: the site address is shown instead.
+    support_contact: str | None = None
+
+    # Payme Merchant API. Unset until the merchant contract is signed: the site then hides Payme.
+    payme_merchant_id: str | None = None
+    payme_key: SecretStr | None = None
+    # True: checkout on test.paycom.uz with the sandbox key.
+    payme_test: bool = True
+
+    # Click SHOP-API. Unset until the merchant contract is signed: the site then hides Click.
+    click_service_id: str | None = None
+    click_merchant_id: str | None = None
+    click_secret_key: SecretStr | None = None
+
     # LOCAL DEVELOPMENT ONLY: lets the mini app run in a normal browser (no Telegram
     # initData) as this Telegram user. Must stay unset in production.
     miniapp_dev_telegram_id: int | None = None

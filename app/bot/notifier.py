@@ -4,6 +4,7 @@ from aiogram.types import BufferedInputFile
 from app.bot.keyboards import result_keyboard, share_keyboard
 from app.bot.texts import t
 from app.domain.generations.runner import Outcome, RejectReason
+from app.domain.payments.notify import Notice, PaymentNotices
 from app.media.ffmpeg import FRAME_SIZE
 from app.models.enums import Language, Resolution
 
@@ -53,6 +54,11 @@ class TelegramNotifier:
             raise RuntimeError("Telegram did not return a video")
         return message.video.file_id
 
+    async def send_payment_notices(self, notices: PaymentNotices) -> None:
+        await self._bot.send_message(notices.payer.chat_id, paid_text(notices.payer))
+        if notices.referrer is not None:
+            await self._bot.send_message(notices.referrer.chat_id, referral_text(notices.referrer))
+
     async def send_failure(
         self, chat_id: int, language: Language, outcome: Outcome, reason: RejectReason | None
     ) -> None:
@@ -66,3 +72,17 @@ def failure_text(language: Language, outcome: Outcome, reason: RejectReason | No
     if outcome is Outcome.BLOCKED:
         return t(language, "failed_blocked")
     return t(language, "failed_failed")
+
+
+def paid_text(notice: Notice) -> str:
+    lines = [t(notice.language, "paid", credits=notice.credits)]
+    if notice.referral_bonus:
+        lines.append(t(notice.language, "paid_referral", bonus=notice.referral_bonus))
+    lines.append(t(notice.language, "paid_balance", available=notice.available))
+    return "\n".join(lines)
+
+
+def referral_text(notice: Notice) -> str:
+    return t(
+        notice.language, "referral_reward", bonus=notice.referral_bonus, available=notice.available
+    )
