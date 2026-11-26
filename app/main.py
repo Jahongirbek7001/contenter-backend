@@ -17,6 +17,9 @@ from app.api.admin import router as admin_router
 from app.api.catalog import router as catalog_router
 from app.api.miniapp import router as miniapp_router
 from app.api.miniapp.deps import MiniAppAuth
+from app.api.payments import Gateways
+from app.api.payments import router as payments_router
+from app.api.site import router as site_router
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
 from app.gateway.factory import build_google_providers
@@ -38,6 +41,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         bot_token=settings.telegram_bot_token.get_secret_value(),
         dev_telegram_id=settings.miniapp_dev_telegram_id,
     )
+    app.state.gateways = Gateways.from_settings(settings)
+    app.state.bot_username = settings.telegram_bot_username
     yield
     await arq.aclose()
     await engine.dispose()
@@ -61,6 +66,8 @@ def create_app(cors_origins: list[str], admin_cookie_secure: bool = False) -> Fa
     app.include_router(catalog_router)
     app.include_router(admin_router)
     app.include_router(miniapp_router)
+    app.include_router(site_router)
+    app.include_router(payments_router)
     return app
 
 

@@ -42,7 +42,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "trend_unavailable": "Bu trend hozir mavjud emas. Boshqasini tanlang.",
         "insufficient": (
             "⚡ yetarli emas: kerak <b>{required}</b>, sizda <b>{available}</b>.\n"
-            "Paketlar tez orada sotuvga chiqadi."
+            "«⚡ Balans» bo'limida paket sotib oling."
         ),
         "started": (
             "🎬 Video tayyorlanmoqda, taxminan 3 daqiqa.\n"
@@ -135,6 +135,42 @@ TEXTS: dict[Language, dict[str, str]] = {
         ),
         "spoken_result": "Tayyor! ✨",
         "flow_expired": "Bu bosqich eskirdi. Menyudan qaytadan boshlang.",
+        "shop_title": "\n\n<b>⚡ sotib olish</b> — Telegram Stars ⭐ bilan:",
+        "shop_empty": "\n\nPaketlar hozircha sotuvda yo'q.",
+        "shop_pack": "{title} · {credits} ⚡ — {stars} ⭐",
+        "shop_promo": "🎁 Promo-kod",
+        "shop_invite": "👥 Do'stni taklif qilish",
+        "invoice_title": "{title} · {credits} ⚡",
+        "invoice_description": "Contentor AI balansiga {credits} ⚡ — video yaratish uchun.",
+        "order_trial_used": "Sinov paketi har bir foydalanuvchiga faqat bir marta sotiladi.",
+        "order_pack_unavailable": "Bu paket hozir sotilmaydi. Boshqasini tanlang.",
+        "order_blocked": "Hisobingiz cheklangan, xarid qilib bo'lmaydi.",
+        "paid": "✅ To'lov qabul qilindi: <b>+{credits} ⚡</b>",
+        "paid_referral": "🎁 Do'st taklifi bonusi: <b>+{bonus} ⚡</b>",
+        "paid_balance": "Balansingiz: <b>{available} ⚡</b>",
+        "referral_reward": (
+            "🎉 Siz taklif qilgan do'stingiz birinchi xaridini qildi: <b>+{bonus} ⚡</b>\n"
+            "Balansingiz: <b>{available} ⚡</b>"
+        ),
+        "invite": (
+            "Havolani do'stingizga yuboring. U birinchi paketni sotib olganda "
+            "ikkalangizga ham <b>+{bonus} ⚡</b> beriladi.\n\n{link}"
+        ),
+        "invite_share": "📤 Havolani ulashish",
+        "invite_share_text": "Contentor AI — selfidan AI video. Shu havola orqali kiring:",
+        "promo_ask": "Promo-kodni yozing:",
+        "promo_ok": "🎁 <b>+{credits} ⚡</b> qo'shildi!\nBalansingiz: <b>{available} ⚡</b>",
+        "promo_not_found": "Bunday promo-kod yo'q yoki faol emas.",
+        "promo_expired": "Bu promo-kodning muddati tugagan.",
+        "promo_used_up": "Bu promo-kod limiti tugagan.",
+        "promo_already_used": "Siz bu promo-koddan foydalanib bo'lgansiz.",
+        "paysupport": (
+            "<b>To'lov bo'yicha yordam</b>\n\n"
+            "To'lov o'tdi, lekin ⚡ tushmadimi yoki xato bo'ldimi? {contact} ga yozing: "
+            "Telegram ID'ingiz ({telegram_id}) va to'lov vaqtini ko'rsating.\n"
+            "Ishlatilmagan ⚡ uchun Stars qaytarilishi mumkin.\n\n"
+            "Shartlar: {terms}"
+        ),
     },
     Language.RU: {
         "choose_language": "Tilni tanlang · Выберите язык",
@@ -175,7 +211,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "trend_unavailable": "Этот тренд сейчас недоступен. Выберите другой.",
         "insufficient": (
             "Недостаточно ⚡: нужно <b>{required}</b>, у вас <b>{available}</b>.\n"
-            "Пакеты скоро появятся в продаже."
+            "Пополните баланс в разделе «⚡ Баланс»."
         ),
         "started": (
             "🎬 Видео готовится, примерно 3 минуты.\n"
@@ -268,6 +304,42 @@ TEXTS: dict[Language, dict[str, str]] = {
         ),
         "spoken_result": "Готово! ✨",
         "flow_expired": "Этот шаг устарел. Начните заново из меню.",
+        "shop_title": "\n\n<b>Купить ⚡</b> — за Telegram Stars ⭐:",
+        "shop_empty": "\n\nПакеты пока не продаются.",
+        "shop_pack": "{title} · {credits} ⚡ — {stars} ⭐",
+        "shop_promo": "🎁 Промокод",
+        "shop_invite": "👥 Пригласить друга",
+        "invoice_title": "{title} · {credits} ⚡",
+        "invoice_description": "{credits} ⚡ на баланс Contentor AI — для создания видео.",
+        "order_trial_used": "Пробный пакет можно купить только один раз.",
+        "order_pack_unavailable": "Этот пакет сейчас не продаётся. Выберите другой.",
+        "order_blocked": "Ваш аккаунт ограничен, покупка недоступна.",
+        "paid": "✅ Оплата получена: <b>+{credits} ⚡</b>",
+        "paid_referral": "🎁 Бонус за приглашение: <b>+{bonus} ⚡</b>",
+        "paid_balance": "Ваш баланс: <b>{available} ⚡</b>",
+        "referral_reward": (
+            "🎉 Приглашённый вами друг сделал первую покупку: <b>+{bonus} ⚡</b>\n"
+            "Ваш баланс: <b>{available} ⚡</b>"
+        ),
+        "invite": (
+            "Отправьте ссылку другу. Когда он купит первый пакет, "
+            "вы оба получите <b>+{bonus} ⚡</b>.\n\n{link}"
+        ),
+        "invite_share": "📤 Поделиться ссылкой",
+        "invite_share_text": "Contentor AI — AI-видео из селфи. Заходи по ссылке:",
+        "promo_ask": "Напишите промокод:",
+        "promo_ok": "🎁 Начислено <b>+{credits} ⚡</b>!\nВаш баланс: <b>{available} ⚡</b>",
+        "promo_not_found": "Такого промокода нет или он не активен.",
+        "promo_expired": "Срок действия промокода истёк.",
+        "promo_used_up": "Лимит этого промокода исчерпан.",
+        "promo_already_used": "Вы уже использовали этот промокод.",
+        "paysupport": (
+            "<b>Помощь с оплатой</b>\n\n"
+            "Оплата прошла, а ⚡ не пришли, или возникла ошибка? Напишите {contact}: "
+            "укажите ваш Telegram ID ({telegram_id}) и время оплаты.\n"
+            "За неиспользованные ⚡ Stars можно вернуть.\n\n"
+            "Условия: {terms}"
+        ),
     },
 }
 

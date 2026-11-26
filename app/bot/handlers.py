@@ -17,7 +17,6 @@ from app.bot.callbacks import GalleryCb, LanguageCb, PickCb, RegenCb, RulesCb
 from app.bot.keyboards import gallery_keyboard, language_keyboard, main_menu, rules_keyboard
 from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.credits.errors import InsufficientCreditsError
-from app.domain.credits.service import get_balance
 from app.domain.generations.jobs import TREND_JOB, job_id
 from app.domain.generations.start import (
     MAX_PHOTO_BYTES,
@@ -108,20 +107,6 @@ async def help_menu(message: Message, session_factory: async_sessionmaker[AsyncS
     async with session_factory() as session, session.begin():
         language = (await _user(session, message.from_user)).language
     await message.answer(t(language, "help"))
-
-
-@router.message(F.text.in_(_menu_texts("menu_balance")))
-async def balance_menu(message: Message, session_factory: async_sessionmaker[AsyncSession]) -> None:
-    if message.from_user is None:
-        return
-    async with session_factory() as session, session.begin():
-        user = await _user(session, message.from_user)
-        balance = await get_balance(session, user.id)
-    if balance.held:
-        text = t(user.language, "balance_held", available=balance.available, held=balance.held)
-    else:
-        text = t(user.language, "balance", available=balance.available)
-    await message.answer(text)
 
 
 async def _active_trends(session: AsyncSession, audience: TrendAudience) -> list[TrendTemplate]:

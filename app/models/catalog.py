@@ -37,6 +37,7 @@ class Pack(Base):
         CheckConstraint("price_uzs > 0", name="price_positive"),
         CheckConstraint("credits > 0", name="credits_positive"),
         CheckConstraint("bonus_credits >= 0", name="bonus_non_negative"),
+        CheckConstraint("price_stars > 0", name="price_stars_positive"),
     )
 
     id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
@@ -44,6 +45,8 @@ class Pack(Base):
     title_uz: Mapped[str] = mapped_column(String(64), nullable=False)
     title_ru: Mapped[str] = mapped_column(String(64), nullable=False)
     price_uzs: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Telegram Stars price inside the bot; None keeps the pack off the bot's shelf.
+    price_stars: Mapped[int | None] = mapped_column(Integer, nullable=True)
     credits: Mapped[int] = mapped_column(Integer, nullable=False)
     bonus_credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     is_one_time: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

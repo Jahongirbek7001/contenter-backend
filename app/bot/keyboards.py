@@ -8,6 +8,7 @@ from aiogram.types import (
 )
 
 from app.bot.callbacks import (
+    BuyCb,
     GalleryCb,
     LanguageCb,
     OptionAction,
@@ -18,11 +19,13 @@ from app.bot.callbacks import (
     RulesCb,
     ScriptAction,
     ScriptCb,
+    ShopAction,
+    ShopCb,
     SpokenRulesCb,
     StyleCb,
 )
 from app.bot.texts import t
-from app.models import ScriptStyle
+from app.models import Pack, ScriptStyle
 from app.models.enums import Language, Product, Resolution, TrendAudience
 
 AUDIENCE_KEYS = {
@@ -223,4 +226,50 @@ def options_keyboard(language: Language, subtitles: bool, price: int) -> InlineK
             ],
             [button(t(language, "option_create", price=price), OptionAction.CREATE)],
         ]
+    )
+
+
+def pack_title(pack: Pack, language: Language) -> str:
+    return pack.title_ru if language is Language.RU else pack.title_uz
+
+
+def shop_keyboard(language: Language, packs: list[Pack]) -> InlineKeyboardMarkup:
+    """Packs priced in Stars, then promo code and invite."""
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=t(
+                    language,
+                    "shop_pack",
+                    title=pack_title(pack, language),
+                    credits=pack.credits + pack.bonus_credits,
+                    stars=pack.price_stars,
+                ),
+                callback_data=BuyCb(pack_id=pack.id).pack(),
+            )
+        ]
+        for pack in packs
+        if pack.price_stars is not None
+    ]
+    rows.append(
+        [
+            InlineKeyboardButton(
+                text=t(language, "shop_promo"),
+                callback_data=ShopCb(action=ShopAction.PROMO).pack(),
+            ),
+            InlineKeyboardButton(
+                text=t(language, "shop_invite"),
+                callback_data=ShopCb(action=ShopAction.INVITE).pack(),
+            ),
+        ]
+    )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def invite_keyboard(language: Language, link: str) -> InlineKeyboardMarkup:
+    share_url = "https://t.me/share/url?" + urlencode(
+        {"url": link, "text": t(language, "invite_share_text")}
+    )
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=t(language, "invite_share"), url=share_url)]]
     )
