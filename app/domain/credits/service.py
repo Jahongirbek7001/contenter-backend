@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.credits.errors import (
     HoldNotActiveError,
     InsufficientCreditsError,
+    NotRefundableError,
     TrialAlreadyUsedError,
 )
 from app.models import CreditHold, CreditLedgerEntry, Pack, Payment, User
@@ -154,3 +155,36 @@ async def adjust_credits(session: AsyncSession, user_id: int, amount: int, note:
         CreditLedgerEntry(user_id=user_id, kind=LedgerKind.ADJUSTMENT, amount=amount, note=note)
     )
     await session.flush()
+
+
+async def refund_generation(session: AsyncSession, generation_id: int, note: str) -> int:
+    """Support refund of a delivered video the user complained about. Returns the ⚡ given
+    back. Failed and blocked generations never need this: their hold was released."""
+    spend = await session.scalar(
+        select(CreditLedgerEntry).where(
+            CreditLedgerEntry.generation_id == generation_id,
+            CreditLedgerEntry.kind == LedgerKind.SPEND,
+        )
+    )
+    if spend is None:
+        raise NotRefundableError(generation_id, "not_spent")
+    await _lock_user(session, spend.user_id)
+    already = await session.scalar(
+        select(CreditLedgerEntry.id).where(
+            CreditLedgerEntry.generation_id == generation_id,
+            CreditLedgerEntry.kind == LedgerKind.REFUND,
+        )
+    )
+    if already is not None:
+        raise NotRefundableError(generation_id, "already_refunded")
+    session.add(
+        CreditLedgerEntry(
+            user_id=spend.user_id,
+            kind=LedgerKind.REFUND,
+            amount=-spend.amount,
+            generation_id=generation_id,
+            note=note,
+        )
+    )
+    await session.flush()
+    return -spend.amount

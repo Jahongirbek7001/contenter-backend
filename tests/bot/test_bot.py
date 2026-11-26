@@ -2,12 +2,24 @@ import re
 
 import pytest
 
-from app.bot.callbacks import GalleryCb, PickCb, RegenCb
-from app.bot.keyboards import gallery_keyboard, result_keyboard
+from app.bot.callbacks import (
+    GalleryCb,
+    OptionAction,
+    OptionCb,
+    PickCb,
+    RegenCb,
+    ResolutionCb,
+    ScriptAction,
+    ScriptCb,
+    SpokenRulesCb,
+    StyleCb,
+)
+from app.bot.keyboards import gallery_keyboard, resolution_keyboard, result_keyboard
 from app.bot.notifier import failure_text
-from app.bot.texts import TEXTS, t
+from app.bot.spoken import _menu_product
+from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.generations.trend import Outcome, RejectReason
-from app.models.enums import Language, TrendAudience
+from app.models.enums import Language, Product, Resolution, TrendAudience
 
 PLACEHOLDER = re.compile(r"{(\w+)}")
 
@@ -57,3 +69,28 @@ def test_result_keyboard_shares_bot_link() -> None:
     assert share.url is not None
     assert share.url.startswith("https://t.me/share/url?")
     assert "t.me%2Fcontentorai_bot" in share.url
+
+
+def test_spoken_callbacks_fit_telegram_limit() -> None:
+    for packed in (
+        StyleCb(product=Product.SERIES, style_id=2**31).pack(),
+        SpokenRulesCb(product=Product.TALKING, style_id=2**31).pack(),
+        ScriptCb(action=ScriptAction.REWRITE).pack(),
+        ResolutionCb(resolution=Resolution.P1080).pack(),
+        OptionCb(action=OptionAction.CREATE).pack(),
+    ):
+        assert len(packed.encode()) <= 64
+
+
+def test_resolution_keyboard_lists_only_priced_resolutions_in_order() -> None:
+    keyboard = resolution_keyboard(Language.UZ, {Resolution.P1080: 15, Resolution.P360: 3})
+    labels = [row[0].text for row in keyboard.inline_keyboard]
+    assert labels == ["360p · 3 ⚡", "1080p · 15 ⚡"]
+
+
+def test_menu_buttons_are_never_taken_as_free_text() -> None:
+    for language in Language:
+        for key in ("menu_talking", "menu_series", "menu_trends", "menu_balance"):
+            assert t(language, key) in MENU_TEXTS
+    assert _menu_product(t(Language.RU, "menu_series")) is Product.SERIES
+    assert _menu_product("Salom") is None

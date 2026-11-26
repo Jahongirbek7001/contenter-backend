@@ -7,9 +7,23 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-from app.bot.callbacks import GalleryCb, LanguageCb, PickCb, RegenCb, RulesCb
+from app.bot.callbacks import (
+    GalleryCb,
+    LanguageCb,
+    OptionAction,
+    OptionCb,
+    PickCb,
+    RegenCb,
+    ResolutionCb,
+    RulesCb,
+    ScriptAction,
+    ScriptCb,
+    SpokenRulesCb,
+    StyleCb,
+)
 from app.bot.texts import t
-from app.models.enums import Language, TrendAudience
+from app.models import ScriptStyle
+from app.models.enums import Language, Product, Resolution, TrendAudience
 
 AUDIENCE_KEYS = {
     TrendAudience.ALL: "filter_all",
@@ -37,6 +51,10 @@ def main_menu(language: Language) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [KeyboardButton(text=t(language, "menu_trends"))],
+            [
+                KeyboardButton(text=t(language, "menu_talking")),
+                KeyboardButton(text=t(language, "menu_series")),
+            ],
             [
                 KeyboardButton(text=t(language, "menu_balance")),
                 KeyboardButton(text=t(language, "menu_language")),
@@ -99,12 +117,16 @@ def gallery_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=[filters, navigation, pick])
 
 
-def result_keyboard(
-    language: Language, generation_id: int, price: int, bot_username: str
-) -> InlineKeyboardMarkup:
+def _share_button(language: Language, bot_username: str) -> InlineKeyboardButton:
     share_url = "https://t.me/share/url?" + urlencode(
         {"url": f"https://t.me/{bot_username}", "text": t(language, "share_text")}
     )
+    return InlineKeyboardButton(text=t(language, "share"), url=share_url)
+
+
+def result_keyboard(
+    language: Language, generation_id: int, price: int, bot_username: str
+) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -113,6 +135,92 @@ def result_keyboard(
                     callback_data=RegenCb(generation_id=generation_id).pack(),
                 )
             ],
-            [InlineKeyboardButton(text=t(language, "share"), url=share_url)],
+            [_share_button(language, bot_username)],
+        ]
+    )
+
+
+def share_keyboard(language: Language, bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[_share_button(language, bot_username)]])
+
+
+def style_title(style: ScriptStyle, language: Language) -> str:
+    return style.title_ru if language is Language.RU else style.title_uz
+
+
+def style_keyboard(
+    language: Language, product: Product, styles: list[ScriptStyle]
+) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(
+            text=style_title(style, language),
+            callback_data=StyleCb(product=product, style_id=style.id).pack(),
+        )
+        for style in styles
+    ]
+    return InlineKeyboardMarkup(
+        inline_keyboard=[buttons[i : i + 2] for i in range(0, len(buttons), 2)]
+    )
+
+
+def spoken_rules_keyboard(
+    language: Language, product: Product, style_id: int
+) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(language, "rules_accept"),
+                    callback_data=SpokenRulesCb(product=product, style_id=style_id).pack(),
+                )
+            ]
+        ]
+    )
+
+
+def script_keyboard(language: Language) -> InlineKeyboardMarkup:
+    def button(key: str, action: ScriptAction) -> InlineKeyboardButton:
+        return InlineKeyboardButton(
+            text=t(language, key), callback_data=ScriptCb(action=action).pack()
+        )
+
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [button("script_approve", ScriptAction.APPROVE)],
+            [
+                button("script_rewrite", ScriptAction.REWRITE),
+                button("script_edit", ScriptAction.EDIT),
+            ],
+        ]
+    )
+
+
+def resolution_keyboard(language: Language, prices: dict[Resolution, int]) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(language, "resolution_button", resolution=resolution.value, price=price),
+                    callback_data=ResolutionCb(resolution=resolution).pack(),
+                )
+            ]
+            for resolution in Resolution
+            if (price := prices.get(resolution)) is not None
+        ]
+    )
+
+
+def options_keyboard(language: Language, subtitles: bool, price: int) -> InlineKeyboardMarkup:
+    def button(text: str, action: OptionAction) -> InlineKeyboardButton:
+        return InlineKeyboardButton(text=text, callback_data=OptionCb(action=action).pack())
+
+    subtitles_key = "option_subtitles_on" if subtitles else "option_subtitles_off"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                button(t(language, subtitles_key), OptionAction.SUBTITLES),
+                button(t(language, "option_contact"), OptionAction.CONTACT),
+            ],
+            [button(t(language, "option_create", price=price), OptionAction.CREATE)],
         ]
     )

@@ -19,3 +19,12 @@ class TrialAlreadyUsedError(CreditError):
     def __init__(self, user_id: int) -> None:
         super().__init__(f"user {user_id} already bought the trial pack")
         self.user_id = user_id
+
+
+class NotRefundableError(CreditError):
+    """Only a spent generation can be refunded, and only once."""
+
+    def __init__(self, generation_id: int, reason: str) -> None:
+        super().__init__(f"generation {generation_id} cannot be refunded: {reason}")
+        self.generation_id = generation_id
+        self.reason = reason

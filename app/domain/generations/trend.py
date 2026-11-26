@@ -3,20 +3,24 @@ photo check + prompts (Hydrogen) -> first frame (Nano Banana) -> Veo 1080p 8 s
 -> cached Lyria track -> ffmpeg -> Telegram. ⚡ is settled on success and released otherwise.
 """
 
-import asyncio
 import json
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from decimal import Decimal
-from enum import StrEnum
 from typing import Protocol
 
 import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.domain.credits.service import release_hold, settle_hold
+from app.domain.generations.runner import (
+    Delivery,
+    Outcome,
+    RejectReason,
+    finish_generation,
+    reject_reason,
+    retry_provider,
+)
 from app.domain.generations.start import photo_mime_type
 from app.domain.trends.media import music_prompt, save_track
 from app.gateway.base import (
@@ -35,8 +39,9 @@ from app.models.enums import GenerationStatus, Language, Product, Resolution
 
 log = structlog.get_logger(__name__)
 
+__all__ = ["Outcome", "RejectReason", "TrendPipeline", "parse_plan", "run_trend_generation"]
+
 TREND_SECONDS = 8
-PROVIDER_ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 5.0
 
 PLAN_INSTRUCTIONS = """You prepare a short trend video from a user's selfie.
@@ -57,22 +62,6 @@ Otherwise, in English:
   photorealistic, keeping the person's face and identity exactly. Follow the first-frame rules.
 - video_prompt: an 8 second silent vertical clip that starts from that frame: subject action,
   camera movement, lighting, mood. No dialogue, no on-screen text, no logos."""
-
-
-class Outcome(StrEnum):
-    SUCCEEDED = "succeeded"
-    PHOTO_REJECTED = "photo_rejected"
-    BLOCKED = "blocked"
-    FAILED = "failed"
-
-
-class RejectReason(StrEnum):
-    NO_FACE = "no_face"
-    SEVERAL_PEOPLE = "several_people"
-    MINOR = "minor"
-    CELEBRITY = "celebrity"
-    NUDITY = "nudity"
-    LOW_QUALITY = "low_quality"
 
 
 class Notifier(Protocol):
@@ -178,12 +167,14 @@ async def run_trend_generation(pipeline: TrendPipeline, generation_id: int) -> O
         job,
         Outcome.SUCCEEDED,
         cost,
-        file_id=file_id,
-        prompt=json.dumps(
-            {"image_prompt": plan.image_prompt, "video_prompt": plan.video_prompt},
-            ensure_ascii=False,
+        delivery=Delivery(
+            file_id=file_id,
+            prompt=json.dumps(
+                {"image_prompt": plan.image_prompt, "video_prompt": plan.video_prompt},
+                ensure_ascii=False,
+            ),
+            provider_job_id=video.provider_job_id,
         ),
-        provider_job_id=video.provider_job_id,
     )
     return Outcome.SUCCEEDED
 
@@ -197,13 +188,12 @@ def parse_plan(text: str) -> Plan:
     if not isinstance(data, dict) or not isinstance(data.get("photo_ok"), bool):
         raise ProviderFailedError(f"plan has no photo_ok: {text[:200]}")
     if not data["photo_ok"]:
-        raw_reason = data.get("reject_reason")
-        reason = (
-            RejectReason(raw_reason)
-            if isinstance(raw_reason, str) and raw_reason in set(RejectReason)
-            else RejectReason.LOW_QUALITY
+        return Plan(
+            photo_ok=False,
+            reject_reason=reject_reason(data.get("reject_reason")),
+            image_prompt="",
+            video_prompt="",
         )
-        return Plan(photo_ok=False, reject_reason=reason, image_prompt="", video_prompt="")
     image_prompt, video_prompt = data.get("image_prompt"), data.get("video_prompt")
     if not isinstance(image_prompt, str) or not isinstance(video_prompt, str):
         raise ProviderFailedError("plan is missing prompts")
@@ -217,16 +207,7 @@ def _plan_prompt(job: _Job) -> str:
 
 
 async def _retry[T](pipeline: TrendPipeline, call: Callable[[], Awaitable[T]]) -> T:
-    """Retries technical failures only; a safety block is final."""
-    for attempt in range(1, PROVIDER_ATTEMPTS + 1):
-        try:
-            return await call()
-        except ProviderFailedError as exc:
-            if attempt == PROVIDER_ATTEMPTS:
-                raise
-            log.warning("provider call failed, retrying", attempt=attempt, error=str(exc))
-            await asyncio.sleep(pipeline.retry_delay_seconds * attempt)
-    raise AssertionError("unreachable")
+    return await retry_provider(pipeline.retry_delay_seconds, call)
 
 
 async def _claim(pipeline: TrendPipeline, generation_id: int) -> _Job | None:
@@ -286,14 +267,6 @@ async def _music_for(pipeline: TrendPipeline, job: _Job) -> tuple[bytes | None, 
     return track.data, track.cost_usd
 
 
-_STATUS = {
-    Outcome.SUCCEEDED: GenerationStatus.SUCCEEDED,
-    Outcome.PHOTO_REJECTED: GenerationStatus.FAILED,
-    Outcome.BLOCKED: GenerationStatus.BLOCKED,
-    Outcome.FAILED: GenerationStatus.FAILED,
-}
-
-
 async def _finish(
     pipeline: TrendPipeline,
     job: _Job,
@@ -301,28 +274,16 @@ async def _finish(
     cost: Decimal,
     *,
     reason: RejectReason | None = None,
-    file_id: str | None = None,
-    prompt: str | None = None,
-    provider_job_id: str | None = None,
+    delivery: Delivery | None = None,
 ) -> None:
-    async with pipeline.session_factory() as session, session.begin():
-        generation = await session.get(Generation, job.generation_id, with_for_update=True)
-        if generation is None:
-            raise LookupError(f"generation {job.generation_id} disappeared")
-        generation.status = _STATUS[outcome]
-        generation.cost_usd = cost
-        generation.finished_at = datetime.now(UTC)
-        if outcome is Outcome.SUCCEEDED:
-            generation.telegram_file_id = file_id
-            generation.prompt = prompt
-            generation.provider_job_id = provider_job_id
-            await settle_hold(session, generation.id)
-        else:
-            generation.error_code = f"{outcome}:{reason}" if reason else str(outcome)
-            await release_hold(session, generation.id)
-    if outcome is not Outcome.SUCCEEDED:
-        try:
-            await pipeline.notifier.send_failure(job.chat_id, job.language, outcome, reason)
-        except Exception:
-            # ⚡ is already back; a failed apology message must not undo that.
-            log.exception("failure notice not delivered", generation_id=job.generation_id)
+    await finish_generation(
+        pipeline.session_factory,
+        pipeline.notifier,
+        job.generation_id,
+        job.chat_id,
+        job.language,
+        outcome,
+        cost,
+        reason=reason,
+        delivery=delivery,
+    )

@@ -15,8 +15,10 @@ from arq import create_pool
 from arq.connections import RedisSettings
 
 from app.bot.handlers import router
+from app.bot.spoken import router as spoken_router
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
+from app.gateway.factory import build_google_providers
 from app.media.store import LocalMediaStore
 
 
@@ -27,7 +29,9 @@ async def main() -> None:
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dispatcher = Dispatcher(storage=RedisStorage.from_url(settings.redis_url))
+    # The main router goes first: its reply-menu buttons must work from any step.
     dispatcher.include_router(router)
+    dispatcher.include_router(spoken_router)
     engine = create_engine(settings.database_url)
     arq = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     try:
@@ -37,6 +41,7 @@ async def main() -> None:
             session_factory=create_session_factory(engine),
             store=LocalMediaStore(Path(settings.media_dir)),
             arq=arq,
+            text_provider=build_google_providers(settings).text,
         )
     finally:
         await arq.aclose()
