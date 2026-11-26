@@ -1,10 +1,11 @@
 from aiogram import Bot
 from aiogram.types import BufferedInputFile
 
-from app.bot.keyboards import result_keyboard
+from app.bot.keyboards import result_keyboard, share_keyboard
 from app.bot.texts import t
-from app.domain.generations.trend import Outcome, RejectReason
-from app.models.enums import Language
+from app.domain.generations.runner import Outcome, RejectReason
+from app.media.ffmpeg import FRAME_SIZE
+from app.models.enums import Language, Resolution
 
 
 class TelegramNotifier:
@@ -25,6 +26,28 @@ class TelegramNotifier:
             height=1920,
             supports_streaming=True,
             reply_markup=result_keyboard(language, generation_id, price, self._bot_username),
+        )
+        if message.video is None:
+            raise RuntimeError("Telegram did not return a video")
+        return message.video.file_id
+
+    async def send_spoken_result(
+        self,
+        chat_id: int,
+        language: Language,
+        video: bytes,
+        generation_id: int,
+        resolution: Resolution,
+    ) -> str:
+        width, height = FRAME_SIZE[resolution]
+        message = await self._bot.send_video(
+            chat_id,
+            BufferedInputFile(video, filename=f"contentor-{generation_id}.mp4"),
+            caption=t(language, "spoken_result"),
+            width=width,
+            height=height,
+            supports_streaming=True,
+            reply_markup=share_keyboard(language, self._bot_username),
         )
         if message.video is None:
             raise RuntimeError("Telegram did not return a video")

@@ -24,7 +24,7 @@ class CreditLedgerEntry(CreatedAtMixin, Base):
     __tablename__ = "credit_ledger"
     __table_args__ = (
         CheckConstraint("amount <> 0", name="amount_non_zero"),
-        # A payment is credited once and a generation is charged once, even under retries.
+        # A payment is credited once; a generation is charged once and refunded at most once.
         Index(
             "uq_credit_ledger_purchase_payment",
             "payment_id",
@@ -36,6 +36,12 @@ class CreditLedgerEntry(CreatedAtMixin, Base):
             "generation_id",
             unique=True,
             postgresql_where=text("kind = 'spend'"),
+        ),
+        Index(
+            "uq_credit_ledger_refund_generation",
+            "generation_id",
+            unique=True,
+            postgresql_where=text("kind = 'refund'"),
         ),
     )
 

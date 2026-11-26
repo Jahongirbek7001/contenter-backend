@@ -14,10 +14,11 @@ from arq.connections import RedisSettings
 from app.bot.notifier import TelegramNotifier
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
-from app.domain.generations.cleanup import delete_expired_photos
+from app.domain.generations.cleanup import delete_expired_photos, delete_expired_videos
+from app.domain.generations.talking import SpokenPipeline, run_spoken_generation
 from app.domain.generations.trend import TrendPipeline, run_trend_generation
 from app.gateway.factory import build_google_providers
-from app.media.ffmpeg import compose_trend_video
+from app.media.ffmpeg import compose_spoken_video, compose_trend_video
 from app.media.store import LocalMediaStore
 
 Context = dict[str, Any]
@@ -34,6 +35,14 @@ async def startup(ctx: Context) -> None:
     ctx["bot"] = bot
     ctx["store"] = store
     ctx["session_factory"] = session_factory
+    notifier = TelegramNotifier(bot, settings.telegram_bot_username)
+    ctx["spoken_pipeline"] = SpokenPipeline(
+        session_factory=session_factory,
+        videos=providers.videos,
+        store=store,
+        notifier=notifier,
+        compose=partial(compose_spoken_video, ffmpeg=settings.ffmpeg_path),
+    )
     ctx["pipeline"] = TrendPipeline(
         session_factory=session_factory,
         text=providers.text,
@@ -41,7 +50,7 @@ async def startup(ctx: Context) -> None:
         music=providers.music,
         videos=providers.videos,
         store=store,
-        notifier=TelegramNotifier(bot, settings.telegram_bot_username),
+        notifier=notifier,
         compose=partial(compose_trend_video, ffmpeg=settings.ffmpeg_path),
     )
 
@@ -56,17 +65,24 @@ async def trend_generation(ctx: Context, generation_id: int) -> str | None:
     return None if outcome is None else outcome.value
 
 
-async def cleanup_photos(ctx: Context) -> int:
-    return await delete_expired_photos(ctx["session_factory"], ctx["store"])
+async def spoken_generation(ctx: Context, generation_id: int) -> str | None:
+    outcome = await run_spoken_generation(ctx["spoken_pipeline"], generation_id)
+    return None if outcome is None else outcome.value
+
+
+async def cleanup_media(ctx: Context) -> int:
+    photos = await delete_expired_photos(ctx["session_factory"], ctx["store"])
+    return photos + await delete_expired_videos(ctx["session_factory"], ctx["store"])
 
 
 class WorkerSettings:
-    functions: ClassVar = [trend_generation]
-    cron_jobs: ClassVar = [cron(cleanup_photos, minute={0, 30})]
+    functions: ClassVar = [trend_generation, spoken_generation]
+    cron_jobs: ClassVar = [cron(cleanup_media, minute={0, 30})]
     on_startup = startup
     on_shutdown = shutdown
     redis_settings = RedisSettings.from_dsn(get_settings().redis_url)
-    # Veo alone takes ~2 minutes; retries happen inside the pipeline, not by re-running jobs.
-    job_timeout = 900
+    # A series is up to three ~3 minute Omni calls plus retries; retries happen inside the
+    # pipeline, not by re-running jobs.
+    job_timeout = 1800
     max_tries = 1
     max_jobs = 4

@@ -75,6 +75,20 @@ class TrendTemplate(CreatedAtMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true(), nullable=False)
 
 
+class ScriptStyle(Base):
+    """A kind of spoken video (sales, expert, POV...). `instructions` steer Hydrogen's script."""
+
+    __tablename__ = "script_styles"
+
+    id: Mapped[int] = mapped_column(Integer, Identity(), primary_key=True)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    title_uz: Mapped[str] = mapped_column(String(128), nullable=False)
+    title_ru: Mapped[str] = mapped_column(String(128), nullable=False)
+    instructions: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, server_default=true(), nullable=False)
+
+
 class MusicTrack(CreatedAtMixin, Base):
     __tablename__ = "music_tracks"
 

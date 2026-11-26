@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -11,12 +12,13 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin
-from app.models.enums import GenerationStatus, Product, Resolution
-from app.models.types import GENERATION_STATUS, PRODUCT, RESOLUTION
+from app.models.enums import GenerationStatus, Language, Product, Resolution
+from app.models.types import GENERATION_STATUS, LANGUAGE, PRODUCT, RESOLUTION
 
 
 class Generation(CreatedAtMixin, Base):
@@ -38,6 +40,13 @@ class Generation(CreatedAtMixin, Base):
     user_input: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Key of the user's photo in the media store; the file is deleted after a retention window.
     input_media_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    style_id: Mapped[int | None] = mapped_column(ForeignKey("script_styles.id"), nullable=True)
+    speech_language: Mapped[Language | None] = mapped_column(LANGUAGE, nullable=True)
+    # Burned into the video by ffmpeg: subtitles from the script, a contact line on top.
+    subtitles: Mapped[bool] = mapped_column(Boolean, server_default=false(), nullable=False)
+    contact_text: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Final video kept in the media store so the admin cabinet can play it.
+    output_media_key: Mapped[str | None] = mapped_column(String(256), nullable=True)
     prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     script: Mapped[str | None] = mapped_column(Text, nullable=True)
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True)

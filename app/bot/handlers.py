@@ -15,9 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot.callbacks import GalleryCb, LanguageCb, PickCb, RegenCb, RulesCb
 from app.bot.keyboards import gallery_keyboard, language_keyboard, main_menu, rules_keyboard
-from app.bot.texts import TEXTS, t
+from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.credits.errors import InsufficientCreditsError
 from app.domain.credits.service import get_balance
+from app.domain.generations.jobs import TREND_JOB, job_id
 from app.domain.generations.start import (
     MAX_PHOTO_BYTES,
     InvalidPhotoError,
@@ -34,7 +35,6 @@ from app.models.enums import Language, TrendAudience
 
 router = Router(name="contentor")
 
-TREND_JOB = "trend_generation"
 REFERRAL_PREFIX = "ref_"
 BADGES = {"hot": "🔥 ", "new": "🆕 ", "top": "⭐ ", "none": ""}
 
@@ -286,7 +286,7 @@ async def accept_rules(
     await _ask_selfie(query.message, state, user.language, trend)
 
 
-def _photo_file(message: Message) -> tuple[str, int | None, str] | None:
+def photo_file(message: Message) -> tuple[str, int | None, str] | None:
     """(file_id, size, mime type) of a photo or an image sent as a file."""
     if message.photo:
         largest = message.photo[-1]
@@ -331,7 +331,7 @@ async def _queue(
         except UserBlockedError:
             await message.answer(t(language, "blocked"))
             return False
-    await arq.enqueue_job(TREND_JOB, generation.id, _job_id=f"generation:{generation.id}")
+    await arq.enqueue_job(TREND_JOB, generation.id, _job_id=job_id(generation.id))
     await message.answer(t(language, "started"))
     return True
 
@@ -349,7 +349,7 @@ async def receive_photo(
         return
     async with session_factory() as session, session.begin():
         language = (await _user(session, message.from_user)).language
-    found = _photo_file(message)
+    found = photo_file(message)
     if found is None:
         await message.answer(t(language, "not_a_photo"))
         return
@@ -373,7 +373,7 @@ async def receive_photo(
         await state.clear()
 
 
-@router.message(StateFilter(TrendFlow.waiting_photo))
+@router.message(StateFilter(TrendFlow.waiting_photo), ~F.text.in_(MENU_TEXTS))
 async def waiting_photo_other(
     message: Message, session_factory: async_sessionmaker[AsyncSession]
 ) -> None:
