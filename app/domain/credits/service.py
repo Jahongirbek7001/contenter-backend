@@ -138,3 +138,19 @@ async def _lock_active_hold(session: AsyncSession, generation_id: int) -> Credit
     if hold is None or hold.status != HoldStatus.ACTIVE:
         raise HoldNotActiveError(generation_id)
     return hold
+
+
+async def adjust_credits(session: AsyncSession, user_id: int, amount: int, note: str) -> None:
+    """Manual correction from the admin cabinet: positive adds ⚡, negative takes back
+    only what the user can spare (never below zero)."""
+    if amount == 0:
+        raise ValueError("adjustment amount must not be zero")
+    await _lock_user(session, user_id)
+    if amount < 0:
+        balance = await get_balance(session, user_id)
+        if balance.available < -amount:
+            raise InsufficientCreditsError(available=balance.available, required=-amount)
+    session.add(
+        CreditLedgerEntry(user_id=user_id, kind=LedgerKind.ADJUSTMENT, amount=amount, note=note)
+    )
+    await session.flush()

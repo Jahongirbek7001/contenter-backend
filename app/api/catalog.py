@@ -1,12 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
-from app.models import Pack
+from app.api.media import file_response
+from app.models import Pack, TrendTemplate
 
 router = APIRouter(prefix="/api", tags=["catalog"])
 
@@ -38,3 +40,19 @@ async def list_packs(session: Annotated[AsyncSession, Depends(get_session)]) -> 
         )
         for pack in packs
     ]
+
+
+@router.get("/trends/{trend_id}/preview.mp4", response_class=FileResponse)
+async def trend_preview(
+    trend_id: Annotated[int, Path(gt=0)],
+    request: Request,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> FileResponse:
+    """Public: previews are catalog marketing content for the mini app and the site."""
+    key = await session.scalar(
+        select(TrendTemplate.preview_storage_key).where(TrendTemplate.id == trend_id)
+    )
+    if key is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no preview")
+    # The URL carries a version, so the file behind it never changes.
+    return file_response(request, key, "video/mp4", max_age=7 * 24 * 3600)

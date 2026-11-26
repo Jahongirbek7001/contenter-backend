@@ -25,6 +25,10 @@ class InvalidPhotoError(ValueError):
     pass
 
 
+class UserBlockedError(PermissionError):
+    pass
+
+
 async def trend_price(session: AsyncSession) -> int:
     credits = await session.scalar(
         select(ProductPrice.credits).where(
@@ -48,6 +52,8 @@ async def start_trend_generation(
     source_generation_id: int | None = None,
 ) -> Generation:
     """Raises InsufficientCreditsError when the user cannot pay; the caller commits."""
+    if user.is_blocked:
+        raise UserBlockedError(f"user {user.id} is blocked")
     extension = PHOTO_MIME_TYPES.get(mime_type)
     if extension is None:
         raise InvalidPhotoError(f"unsupported photo type {mime_type}")

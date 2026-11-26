@@ -290,6 +290,9 @@ async def test_start_requires_credits_and_active_trend(session_factory: SessionF
         with pytest.raises(InsufficientCreditsError):
             await start_trend_generation(session, store, user, active_id, PHOTO, "image/jpeg")
         await session.rollback()
+        # The rollback expired the loaded user; load it again before the next attempt.
+        user = await session.get(User, user_id)
+        assert user is not None
         with pytest.raises(TemplateUnavailableError):
             await start_trend_generation(session, store, user, inactive_id, PHOTO, "image/jpeg")
         with pytest.raises(InvalidPhotoError):

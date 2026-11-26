@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile, s
 from pydantic import BaseModel
 from sqlalchemy import select
 
+from app.api.media import preview_url
 from app.api.miniapp.deps import MiniAppUserDep, SessionDep
 from app.domain.credits.errors import InsufficientCreditsError
 from app.domain.credits.service import get_balance
@@ -13,6 +14,7 @@ from app.domain.generations.start import (
     InvalidPhotoError,
     PriceUnavailableError,
     TemplateUnavailableError,
+    UserBlockedError,
     start_trend_generation,
     trend_price,
 )
@@ -45,6 +47,7 @@ class TrendCard(BaseModel):
     category: str
     audience: TrendAudience
     badge: TrendBadge
+    preview_url: str | None
 
 
 class GenerationOut(BaseModel):
@@ -117,6 +120,7 @@ async def list_trends(session: SessionDep, _: MiniAppUserDep) -> list[TrendCard]
             category=trend.category,
             audience=trend.audience,
             badge=trend.badge,
+            preview_url=preview_url(trend.id, trend.preview_storage_key),
         )
         for trend in trends
     ]
@@ -185,6 +189,9 @@ async def create_generation(
     except InvalidPhotoError as exc:
         await session.rollback()
         raise _error(status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_photo") from exc
+    except UserBlockedError as exc:
+        await session.rollback()
+        raise _error(status.HTTP_403_FORBIDDEN, "blocked") from exc
     await request.app.state.arq.enqueue_job(
         TREND_JOB, generation.id, _job_id=f"generation:{generation.id}"
     )

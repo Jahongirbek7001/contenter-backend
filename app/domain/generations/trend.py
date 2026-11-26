@@ -5,7 +5,6 @@ photo check + prompts (Hydrogen) -> first frame (Nano Banana) -> Veo 1080p 8 s
 
 import asyncio
 import json
-import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -19,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.domain.credits.service import release_hold, settle_hold
 from app.domain.generations.start import photo_mime_type
+from app.domain.trends.media import music_prompt, save_track
 from app.gateway.base import (
     ImageProvider,
     MediaInput,
@@ -57,11 +57,6 @@ Otherwise, in English:
   photorealistic, keeping the person's face and identity exactly. Follow the first-frame rules.
 - video_prompt: an 8 second silent vertical clip that starts from that frame: subject action,
   camera movement, lighting, mood. No dialogue, no on-screen text, no logos."""
-
-MUSIC_PROMPT_TEMPLATE = (
-    "Original 30 second instrumental background music for a short vertical video, "
-    "no vocals, no recognisable melodies. Mood: {mood}"
-)
 
 
 class Outcome(StrEnum):
@@ -226,10 +221,10 @@ async def _retry[T](pipeline: TrendPipeline, call: Callable[[], Awaitable[T]]) -
     for attempt in range(1, PROVIDER_ATTEMPTS + 1):
         try:
             return await call()
-        except ProviderFailedError:
+        except ProviderFailedError as exc:
             if attempt == PROVIDER_ATTEMPTS:
                 raise
-            log.warning("provider call failed, retrying", attempt=attempt)
+            log.warning("provider call failed, retrying", attempt=attempt, error=str(exc))
             await asyncio.sleep(pipeline.retry_delay_seconds * attempt)
     raise AssertionError("unreachable")
 
@@ -271,22 +266,23 @@ async def _music_for(pipeline: TrendPipeline, job: _Job) -> tuple[bytes | None, 
         )
     if key is not None:
         return await pipeline.store.load(key), Decimal(0)
-    if not job.music_mood:
+    mood = job.music_mood
+    if not mood:
         return None, Decimal(0)
     try:
         track = await _retry(
             pipeline,
-            lambda: pipeline.music.compose(MUSIC_PROMPT_TEMPLATE.format(mood=job.music_mood)),
+            lambda: pipeline.music.compose(music_prompt(mood)),
         )
-    except (ProviderBlockedError, ProviderFailedError):
-        log.warning("music failed, sending without music", generation_id=job.generation_id)
+    except (ProviderBlockedError, ProviderFailedError) as exc:
+        log.warning(
+            "music failed, sending without music",
+            generation_id=job.generation_id,
+            error=f"{type(exc).__name__}: {exc}",
+        )
         return None, Decimal(0)
-    key = f"music/{job.template_id}/{uuid.uuid4().hex}.mp3"
-    await pipeline.store.save(key, track.data)
     async with pipeline.session_factory() as session, session.begin():
-        session.add(
-            MusicTrack(template_id=job.template_id, storage_key=key, mood=job.music_mood[:64])
-        )
+        await save_track(session, pipeline.store, job.template_id, track.data, mood)
     return track.data, track.cost_usd
 
 
