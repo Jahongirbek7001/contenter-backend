@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.api.admin.deps import SESSION_COOKIE, CurrentAdmin, SessionDep
+from app.api.ratelimit import limit_by_ip
 from app.domain.admin.service import SESSION_TTL, authenticate, end_session, start_session
 from app.models import AdminUser
 from app.models.enums import AdminRole
@@ -25,7 +26,7 @@ class AdminOut(BaseModel):
         return cls(email=admin.email, role=admin.role)
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(limit_by_ip("admin-login", 10, 900))])
 async def login(
     body: LoginIn, session: SessionDep, request: Request, response: Response
 ) -> AdminOut:

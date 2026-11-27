@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.bot.callbacks import GalleryCb, LanguageCb, PickCb, RegenCb, RulesCb
 from app.bot.keyboards import gallery_keyboard, language_keyboard, main_menu, rules_keyboard
+from app.bot.profile import telegram_profile
 from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.credits.errors import InsufficientCreditsError
 from app.domain.generations.jobs import TREND_JOB, job_id
@@ -47,7 +48,12 @@ def _menu_texts(key: str) -> set[str]:
 
 
 async def _user(session: AsyncSession, telegram_user: TelegramUser) -> User:
-    lookup = await get_or_create_user(session, telegram_user.id, telegram_user.language_code)
+    lookup = await get_or_create_user(
+        session,
+        telegram_user.id,
+        telegram_user.language_code,
+        profile=telegram_profile(telegram_user),
+    )
     return lookup.user
 
 
@@ -70,11 +76,17 @@ async def start(
     await state.clear()
     async with session_factory() as session, session.begin():
         lookup = await get_or_create_user(
-            session, message.from_user.id, message.from_user.language_code, _referrer(command)
+            session,
+            message.from_user.id,
+            message.from_user.language_code,
+            _referrer(command),
+            profile=telegram_profile(message.from_user),
         )
         language = lookup.user.language
     if lookup.created:
         await message.answer(t(language, "choose_language"), reply_markup=language_keyboard())
+        if lookup.welcome_bonus:
+            await message.answer(t(language, "welcome_bonus", credits=lookup.welcome_bonus))
         return
     await message.answer(t(language, "welcome"), reply_markup=main_menu(language))
 

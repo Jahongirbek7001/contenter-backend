@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_session
 from app.core.telegram_auth import InitDataError, validate_init_data
-from app.domain.users import get_or_create_user
+from app.domain.users import Profile, get_or_create_user
 from app.models import User
 
 AUTH_SCHEME = "tma "
@@ -41,14 +41,18 @@ async def miniapp_user(
         except InitDataError as exc:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
         lookup = await get_or_create_user(
-            session, tg_user.telegram_id, tg_user.language_code, _referrer(tg_user.start_param)
+            session,
+            tg_user.telegram_id,
+            tg_user.language_code,
+            _referrer(tg_user.start_param),
+            profile=Profile(tg_user.first_name, tg_user.last_name, tg_user.username),
         )
     elif auth.dev_telegram_id is not None:
         lookup = await get_or_create_user(session, auth.dev_telegram_id, None)
     else:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "open the app from Telegram")
-    if lookup.created:
-        await session.commit()
+    # Commits a new customer and any refreshed name.
+    await session.commit()
     if lookup.user.is_blocked:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "blocked")
     return lookup.user

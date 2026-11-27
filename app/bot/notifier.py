@@ -1,4 +1,8 @@
+import asyncio
+import html
+
 from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError, TelegramRetryAfter
 from aiogram.types import BufferedInputFile
 
 from app.bot.keyboards import result_keyboard, share_keyboard
@@ -6,6 +10,7 @@ from app.bot.texts import t
 from app.domain.generations.runner import Outcome, RejectReason
 from app.domain.payments.notify import Notice, PaymentNotices
 from app.media.ffmpeg import FRAME_SIZE
+from app.models import BonusCampaign
 from app.models.enums import Language, Resolution
 
 
@@ -54,6 +59,20 @@ class TelegramNotifier:
             raise RuntimeError("Telegram did not return a video")
         return message.video.file_id
 
+    async def send(self, chat_id: int, text: str) -> bool:
+        """Best-effort message for broadcasts: False if the customer cannot be reached."""
+        for _ in range(2):
+            try:
+                await self._bot.send_message(chat_id, text)
+            except TelegramRetryAfter as exc:
+                await asyncio.sleep(exc.retry_after)
+            except TelegramAPIError:
+                # Blocked the bot, deleted the account, or only ever used the site.
+                return False
+            else:
+                return True
+        return False
+
     async def send_payment_notices(self, notices: PaymentNotices) -> None:
         await self._bot.send_message(notices.payer.chat_id, paid_text(notices.payer))
         if notices.referrer is not None:
@@ -86,3 +105,14 @@ def referral_text(notice: Notice) -> str:
     return t(
         notice.language, "referral_reward", bonus=notice.referral_bonus, available=notice.available
     )
+
+
+def campaign_text(campaign: BonusCampaign, language: Language, available: int) -> str:
+    """The admin's own words (escaped) followed by the gift and the new balance."""
+    custom = campaign.message_ru if language is Language.RU else campaign.message_uz
+    gift = t(language, "bonus_received", credits=campaign.credits, available=available)
+    return f"{html.escape(custom)}\n\n{gift}" if custom else gift
+
+
+def bonus_text(language: Language, credits: int, available: int) -> str:
+    return t(language, "bonus_received", credits=credits, available=available)

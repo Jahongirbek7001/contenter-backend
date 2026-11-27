@@ -72,7 +72,7 @@ async def test_customers_list_shows_balances(
     await make_user(session_factory, 9002)
 
     rows = (await client.get("/admin/customers")).json()
-    found = (await client.get("/admin/customers", params={"telegram_id": 9001})).json()
+    found = (await client.get("/admin/customers", params={"q": "9001"})).json()
 
     assert [row["telegram_id"] for row in rows] == [9002, 9001]
     assert [(row["id"], row["available"], row["generations"]) for row in found] == [(first, 4, 0)]
