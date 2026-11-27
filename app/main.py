@@ -19,6 +19,7 @@ from app.api.miniapp import router as miniapp_router
 from app.api.miniapp.deps import MiniAppAuth
 from app.api.payments import Gateways
 from app.api.payments import router as payments_router
+from app.api.ratelimit import RateLimiter
 from app.api.site import router as site_router
 from app.core.config import get_settings
 from app.core.db import create_engine, create_session_factory
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     arq = await create_pool(RedisSettings.from_dsn(settings.redis_url))
     app.state.session_factory = create_session_factory(engine)
     app.state.arq = arq
+    app.state.limiter = RateLimiter(arq)
     app.state.media_store = LocalMediaStore(Path(settings.media_dir))
     app.state.transcode = partial(make_preview, ffmpeg=settings.ffmpeg_path)
     app.state.music_provider = build_google_providers(settings).music

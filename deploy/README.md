@@ -102,9 +102,30 @@ chmod +x /opt/contentor/backend/deploy/backup.sh
 (crontab -l 2>/dev/null; echo '30 3 * * * /opt/contentor/backend/deploy/backup.sh >> /opt/contentor/backups/backup.log 2>&1') | crontab -
 ```
 
-## 8. BotFather
+### Backup'ni server tashqarisiga (rclone, bir marta)
+Server yo'qolsa, backup ham yo'qolmasligi uchun nusxa bulutga ham boradi (masalan Google Drive).
+```bash
+apt install -y rclone
+rclone config            # n → nom: gdrive → storage: drive → qolganlari Enter; brauzerda ruxsat bering
+rclone mkdir gdrive:contentor-backups
+nano /opt/contentor/backend/.env      # BACKUP_REMOTE=gdrive:contentor-backups
+/opt/contentor/backend/deploy/backup.sh
+rclone ls gdrive:contentor-backups
+```
+Serverda brauzer yo'q: `rclone config` havola beradi — uni kompyuteringizda oching yoki rclone ko'rsatgan `rclone authorize "drive"` buyrug'ini kompyuterda bajaring.
+
+## 8. Monitoring (Telegram ogohlantirishlari)
+- Telegram ID'ingizni bilish: @userinfobot ga yozing.
+- Botga `/start` yuboring (aks holda bot sizga yoza olmaydi).
+- `.env` ga `ALERT_CHAT_ID=<id>` yozing va: `docker compose -f compose.prod.yml up -d worker`.
+- Keladi: xato bilan tugagan generatsiyalar (10 daqiqada bir yig'ib), kunlik xarajat chegarasi oshganda (Admin → Narxlar), har kuni 21:00 da hisobot.
+
+## 9. BotFather
 - `/setdomain` → bot → `contentor.wtf`.
 - Bot Settings → Menu Button → `https://contentor.wtf/app`.
+
+## Tashqi kuzatuv (tavsiya)
+UptimeRobot (bepul) da `https://api.contentor.wtf/health` ni 5 daqiqada bir tekshiradigan monitor qo'shing: server yoki API butunlay o'chsa, worker xabar yubora olmaydi, UptimeRobot esa email/Telegram orqali ogohlantiradi.
 
 ## Yangilash
 ```bash

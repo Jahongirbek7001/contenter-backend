@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, false
+from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, String, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, CreatedAtMixin
@@ -25,3 +25,7 @@ class User(CreatedAtMixin, Base):
     referral_rewarded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Telegram profile, refreshed on every contact (shown in the admin cabinet).
+    first_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    username: Mapped[str | None] = mapped_column(String(32), nullable=True)

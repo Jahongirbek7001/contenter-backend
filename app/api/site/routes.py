@@ -3,18 +3,19 @@
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.api.payments import Gateways
+from app.api.ratelimit import limit_by_ip
 from app.api.site.deps import SESSION_COOKIE, SessionDep, SiteUserDep
 from app.core.telegram_auth import InitDataError, validate_login_widget
 from app.domain.credits.service import get_balance
 from app.domain.payments.orders import OrderError, create_site_order
 from app.domain.promo import PromoError, redeem_promo
 from app.domain.site_sessions import SESSION_TTL, end_session, start_session
-from app.domain.users import get_or_create_user
+from app.domain.users import Profile, get_or_create_user
 from app.models import Pack, Payment, User
 from app.models.enums import Language, PaymentProvider, PaymentStatus
 
@@ -102,7 +103,7 @@ async def _me(request: Request, session: SessionDep, user: User) -> MeOut:
     )
 
 
-@router.post("/auth/telegram")
+@router.post("/auth/telegram", dependencies=[Depends(limit_by_ip("site-login", 20, 600))])
 async def telegram_login(
     body: TelegramLoginIn, request: Request, response: Response, session: SessionDep
 ) -> MeOut:
@@ -115,7 +116,10 @@ async def telegram_login(
     except InitDataError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
     lookup = await get_or_create_user(
-        session, telegram_id, body.language.value if body.language else None
+        session,
+        telegram_id,
+        body.language.value if body.language else None,
+        profile=Profile(body.first_name, body.last_name, body.username),
     )
     if lookup.user.is_blocked:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "blocked")
@@ -201,7 +205,8 @@ async def payments(session: SessionDep, user: SiteUserDep) -> list[PaymentOut]:
     ]
 
 
-@router.post("/promo")
+# Codes are short words; without a limit they could be guessed.
+@router.post("/promo", dependencies=[Depends(limit_by_ip("promo", 10, 3600))])
 async def promo(body: PromoIn, session: SessionDep, user: SiteUserDep) -> PromoOut:
     try:
         credits = await redeem_promo(session, user.id, body.code, datetime.now(UTC))

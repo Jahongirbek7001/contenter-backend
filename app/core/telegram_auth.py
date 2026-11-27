@@ -19,6 +19,9 @@ class MiniAppUser:
     telegram_id: int
     language_code: str | None
     start_param: str | None
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
 
 
 def validate_init_data(
@@ -42,11 +45,18 @@ def validate_init_data(
         raise InitDataError("auth_date or user is missing") from exc
     if (now if now is not None else time.time()) - auth_date > max_age:
         raise InitDataError("initData expired")
-    language_code = user.get("language_code")
+
+    def text(key: str) -> str | None:
+        value = user.get(key)
+        return value if isinstance(value, str) else None
+
     return MiniAppUser(
         telegram_id=telegram_id,
-        language_code=language_code if isinstance(language_code, str) else None,
+        language_code=text("language_code"),
         start_param=fields.get("start_param"),
+        first_name=text("first_name"),
+        last_name=text("last_name"),
+        username=text("username"),
     )
 
 

@@ -135,6 +135,8 @@ TEXTS: dict[Language, dict[str, str]] = {
         ),
         "spoken_result": "Tayyor! ✨",
         "flow_expired": "Bu bosqich eskirdi. Menyudan qaytadan boshlang.",
+        "welcome_bonus": "🎁 Xush kelibsiz sovg'asi: <b>+{credits} ⚡</b> balansingizda!",
+        "bonus_received": "🎁 Sizga sovg'a: <b>+{credits} ⚡</b>\nBalansingiz: <b>{available} ⚡</b>",
         "shop_title": "\n\n<b>⚡ sotib olish</b> — Telegram Stars ⭐ bilan:",
         "shop_empty": "\n\nPaketlar hozircha sotuvda yo'q.",
         "shop_pack": "{title} · {credits} ⚡ — {stars} ⭐",
@@ -164,6 +166,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "promo_expired": "Bu promo-kodning muddati tugagan.",
         "promo_used_up": "Bu promo-kod limiti tugagan.",
         "promo_already_used": "Siz bu promo-koddan foydalanib bo'lgansiz.",
+        "promo_too_many": "Juda ko'p urinish. Bir soatdan keyin qayta urinib ko'ring.",
         "paysupport": (
             "<b>To'lov bo'yicha yordam</b>\n\n"
             "To'lov o'tdi, lekin ⚡ tushmadimi yoki xato bo'ldimi? {contact} ga yozing: "
@@ -304,6 +307,8 @@ TEXTS: dict[Language, dict[str, str]] = {
         ),
         "spoken_result": "Готово! ✨",
         "flow_expired": "Этот шаг устарел. Начните заново из меню.",
+        "welcome_bonus": "🎁 Подарок за знакомство: <b>+{credits} ⚡</b> уже на балансе!",
+        "bonus_received": "🎁 Вам подарок: <b>+{credits} ⚡</b>\nВаш баланс: <b>{available} ⚡</b>",
         "shop_title": "\n\n<b>Купить ⚡</b> — за Telegram Stars ⭐:",
         "shop_empty": "\n\nПакеты пока не продаются.",
         "shop_pack": "{title} · {credits} ⚡ — {stars} ⭐",
@@ -333,6 +338,7 @@ TEXTS: dict[Language, dict[str, str]] = {
         "promo_expired": "Срок действия промокода истёк.",
         "promo_used_up": "Лимит этого промокода исчерпан.",
         "promo_already_used": "Вы уже использовали этот промокод.",
+        "promo_too_many": "Слишком много попыток. Попробуйте через час.",
         "paysupport": (
             "<b>Помощь с оплатой</b>\n\n"
             "Оплата прошла, а ⚡ не пришли, или возникла ошибка? Напишите {contact}: "

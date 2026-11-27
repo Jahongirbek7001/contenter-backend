@@ -13,12 +13,15 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, LabeledPrice, Message, PreCheckoutQuery
 from aiogram.types import User as TelegramUser
+from arq.connections import ArqRedis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.api.ratelimit import RateLimiter
 from app.bot.callbacks import BuyCb, ShopAction, ShopCb
 from app.bot.keyboards import invite_keyboard, pack_title, shop_keyboard
 from app.bot.notifier import paid_text, referral_text
+from app.bot.profile import telegram_profile
 from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.credits.service import get_balance
 from app.domain.payments.notify import payment_notices
@@ -59,7 +62,12 @@ def _menu_texts(key: str) -> set[str]:
 
 
 async def _user(session: AsyncSession, telegram_user: TelegramUser) -> User:
-    lookup = await get_or_create_user(session, telegram_user.id, telegram_user.language_code)
+    lookup = await get_or_create_user(
+        session,
+        telegram_user.id,
+        telegram_user.language_code,
+        profile=telegram_profile(telegram_user),
+    )
     return lookup.user
 
 
@@ -218,11 +226,27 @@ async def ask_promo(
         await query.message.answer(t(language, "promo_ask"))
 
 
+PROMO_LIMIT = 10
+PROMO_WINDOW_SECONDS = 3600
+
+
 @router.message(StateFilter(ShopFlow.waiting_promo), F.text, ~F.text.in_(MENU_TEXTS))
 async def receive_promo(
-    message: Message, state: FSMContext, session_factory: async_sessionmaker[AsyncSession]
+    message: Message,
+    state: FSMContext,
+    session_factory: async_sessionmaker[AsyncSession],
+    arq: ArqRedis,
 ) -> None:
     if message.from_user is None or message.text is None:
+        return
+    limiter = RateLimiter(arq)
+    if not await limiter.allow(
+        f"bot-promo:{message.from_user.id}", PROMO_LIMIT, PROMO_WINDOW_SECONDS
+    ):
+        await state.clear()
+        await message.answer(
+            t(Language.UZ, "promo_too_many") + "\n" + t(Language.RU, "promo_too_many")
+        )
         return
     async with session_factory() as session, session.begin():
         user = await _user(session, message.from_user)

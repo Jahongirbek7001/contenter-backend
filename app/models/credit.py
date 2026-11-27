@@ -43,6 +43,13 @@ class CreditLedgerEntry(CreatedAtMixin, Base):
             unique=True,
             postgresql_where=text("kind = 'refund'"),
         ),
+        Index(
+            "uq_credit_ledger_campaign_user",
+            "campaign_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("campaign_id IS NOT NULL"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
@@ -51,6 +58,7 @@ class CreditLedgerEntry(CreatedAtMixin, Base):
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     payment_id: Mapped[int | None] = mapped_column(ForeignKey("payments.id"), nullable=True)
     generation_id: Mapped[int | None] = mapped_column(ForeignKey("generations.id"), nullable=True)
+    campaign_id: Mapped[int | None] = mapped_column(ForeignKey("bonus_campaigns.id"), nullable=True)
     note: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
 

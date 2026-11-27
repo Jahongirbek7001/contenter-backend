@@ -1,18 +1,40 @@
+import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from arq.connections import ArqRedis
+from fastapi import APIRouter, HTTPException, Path, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 
 from app.api.admin.deps import CurrentAdmin, EditorAdmin, SessionDep
 from app.domain.credits.errors import InsufficientCreditsError
-from app.domain.credits.service import adjust_credits, get_balance
-from app.models import CreditHold, CreditLedgerEntry, Generation, TrendTemplate, User
-from app.models.enums import GenerationStatus, HoldStatus, Language, LedgerKind, Product
+from app.domain.credits.service import adjust_credits, get_balance, grant_bonus
+from app.domain.users import display_name
+from app.models import (
+    CreditHold,
+    CreditLedgerEntry,
+    Generation,
+    Pack,
+    Payment,
+    TrendTemplate,
+    User,
+)
+from app.models.enums import (
+    GenerationStatus,
+    HoldStatus,
+    Language,
+    LedgerKind,
+    PaymentProvider,
+    PaymentStatus,
+    Product,
+)
 
 router = APIRouter(prefix="/customers")
+logger = logging.getLogger(__name__)
+
+BONUS_NOTICE_JOB = "bonus_notice"
 
 PAGE_SIZE = 50
 CustomerId = Annotated[int, Path(gt=0)]
@@ -21,6 +43,10 @@ CustomerId = Annotated[int, Path(gt=0)]
 class CustomerRow(BaseModel):
     id: int
     telegram_id: int
+    name: str
+    first_name: str | None
+    last_name: str | None
+    username: str | None
     language: Language
     is_blocked: bool
     created_at: datetime
@@ -49,15 +75,33 @@ class CustomerGeneration(BaseModel):
     created_at: datetime
 
 
+class CustomerPayment(BaseModel):
+    id: int
+    provider: PaymentProvider
+    pack_title: str
+    amount: int
+    currency: str
+    credits: int
+    status: PaymentStatus
+    created_at: datetime
+    paid_at: datetime | None
+
+
 class CustomerDetail(CustomerRow):
     rules_accepted_at: datetime | None
+    referrer_id: int | None
     ledger: list[LedgerRow]
     recent_generations: list[CustomerGeneration]
+    payments: list[CustomerPayment]
 
 
 class CreditsIn(BaseModel):
     amount: int = Field(ge=-10_000, le=10_000)
     note: str = Field(min_length=3, max_length=200)
+    # "bonus": a gift (positive only); "adjustment": a correction either way.
+    kind: Literal["adjustment", "bonus"] = "adjustment"
+    # Tell the customer in the bot (positive amounts only).
+    notify: bool = False
 
 
 class CustomerUpdate(BaseModel):
@@ -85,6 +129,10 @@ def _row(user: User, settled: int, held: int, generations: int) -> CustomerRow:
     return CustomerRow(
         id=user.id,
         telegram_id=user.telegram_id,
+        name=display_name(user),
+        first_name=user.first_name,
+        last_name=user.last_name,
+        username=user.username,
         language=user.language,
         is_blocked=user.is_blocked,
         created_at=user.created_at,
@@ -98,12 +146,24 @@ def _row(user: User, settled: int, held: int, generations: int) -> CustomerRow:
 async def list_customers(
     session: SessionDep,
     _: CurrentAdmin,
-    telegram_id: Annotated[int | None, Query(gt=0)] = None,
+    q: Annotated[str | None, Query(max_length=64)] = None,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[CustomerRow]:
+    """`q`: a Telegram id, a name or a @username."""
     query = _customer_query().order_by(User.id.desc()).offset(offset).limit(PAGE_SIZE)
-    if telegram_id is not None:
-        query = query.where(User.telegram_id == telegram_id)
+    term = (q or "").strip().removeprefix("@")
+    if term.isdigit():
+        query = query.where(User.telegram_id == int(term))
+    elif term:
+        pattern = f"%{term}%"
+        query = query.where(
+            or_(
+                User.first_name.ilike(pattern),
+                User.last_name.ilike(pattern),
+                User.username.ilike(pattern),
+                (User.first_name + " " + User.last_name).ilike(pattern),
+            )
+        )
     rows = await session.execute(query)
     return [_row(user, settled, held, count) for user, settled, held, count in rows]
 
@@ -117,19 +177,36 @@ async def get_customer(
 
 @router.post("/{customer_id}/credits")
 async def change_credits(
-    customer_id: CustomerId, body: CreditsIn, session: SessionDep, admin: EditorAdmin
+    customer_id: CustomerId,
+    body: CreditsIn,
+    session: SessionDep,
+    admin: EditorAdmin,
+    request: Request,
 ) -> CustomerDetail:
     if body.amount == 0:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "amount must not be zero")
+    if body.kind == "bonus" and body.amount < 0:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "a bonus must be positive")
     await _load(session, customer_id)
+    note = f"{admin.email}: {body.note}"
     try:
-        await adjust_credits(session, customer_id, body.amount, f"{admin.email}: {body.note}")
+        if body.kind == "bonus":
+            await grant_bonus(session, customer_id, body.amount, note)
+        else:
+            await adjust_credits(session, customer_id, body.amount, note)
     except InsufficientCreditsError as exc:
         await session.rollback()
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"only {exc.available} ⚡ available to take back"
         ) from exc
     await session.commit()
+    if body.notify and body.amount > 0:
+        arq: ArqRedis = request.app.state.arq
+        try:
+            await arq.enqueue_job(BONUS_NOTICE_JOB, customer_id, body.amount)
+        except Exception:
+            # The ⚡ are already credited; a lost message must not undo that.
+            logger.exception("could not queue the bonus notice for customer %s", customer_id)
     return await _detail(session, customer_id)
 
 
@@ -169,9 +246,31 @@ async def _detail(session: SessionDep, customer_id: int) -> CustomerDetail:
         .order_by(Generation.id.desc())
         .limit(20)
     )
+    payments = await session.execute(
+        select(Payment, Pack.title_uz)
+        .join(Pack, Pack.id == Payment.pack_id)
+        .where(Payment.user_id == user.id)
+        .order_by(Payment.id.desc())
+        .limit(20)
+    )
     return CustomerDetail(
         **_row(user, balance.settled, balance.held, generation_count or 0).model_dump(),
         rules_accepted_at=user.rules_accepted_at,
+        referrer_id=user.referrer_id,
+        payments=[
+            CustomerPayment(
+                id=payment.id,
+                provider=payment.provider,
+                pack_title=title,
+                amount=payment.amount,
+                currency=payment.currency,
+                credits=payment.credits,
+                status=payment.status,
+                created_at=payment.created_at,
+                paid_at=payment.paid_at,
+            )
+            for payment, title in payments
+        ],
         ledger=[
             LedgerRow(
                 id=entry.id,

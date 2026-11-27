@@ -37,6 +37,7 @@ from app.bot.keyboards import (
     style_keyboard,
     style_title,
 )
+from app.bot.profile import telegram_profile
 from app.bot.texts import MENU_TEXTS, TEXTS, t
 from app.domain.credits.errors import InsufficientCreditsError
 from app.domain.generations.jobs import SPOKEN_JOB, job_id
@@ -84,7 +85,12 @@ class SpokenFlow(StatesGroup):
 
 
 async def _user(session: AsyncSession, telegram_user: TelegramUser) -> User:
-    lookup = await get_or_create_user(session, telegram_user.id, telegram_user.language_code)
+    lookup = await get_or_create_user(
+        session,
+        telegram_user.id,
+        telegram_user.language_code,
+        profile=telegram_profile(telegram_user),
+    )
     return lookup.user
 
 

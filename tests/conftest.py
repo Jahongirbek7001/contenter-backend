@@ -20,7 +20,8 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 # Tables filled by tests; seeded catalog tables (prices, packs, routes) are kept.
 TEST_DATA_TABLES = (
     "credit_ledger, credit_holds, payments, generations, music_tracks, users, "
-    "admin_sessions, admin_users, site_sessions, promo_redemptions, promo_codes"
+    "admin_sessions, admin_users, site_sessions, promo_redemptions, promo_codes, "
+    "bonus_campaigns, app_settings"
 )
 
 

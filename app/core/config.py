@@ -5,7 +5,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Empty lines in .env (ALERT_CHAT_ID=) mean "use the default", not "invalid value".
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", env_ignore_empty=True)
 
     database_url: str
     redis_url: str
@@ -35,6 +36,10 @@ class Settings(BaseSettings):
     # Shown by /paysupport (Telegram requires it for Stars), e.g. "@contentor_support".
     # Unset: the site address is shown instead.
     support_contact: str | None = None
+
+    # Telegram chat for owner alerts (failures, spend, daily report): the owner's Telegram id
+    # or a group id. Unset turns monitoring off. The owner must /start the bot first.
+    alert_chat_id: int | None = None
 
     # Payme Merchant API. Unset until the merchant contract is signed: the site then hides Payme.
     payme_merchant_id: str | None = None

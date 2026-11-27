@@ -89,7 +89,9 @@ async def payment(env: Env, payment_id: int) -> Payment:
 AUTH = {"Authorization": "Basic " + base64.b64encode(f"Paycom:{PAYME_KEY}".encode()).decode()}
 
 
-async def rpc(env: Env, method: str, auth: dict[str, str] = AUTH, **params: Any) -> dict[str, Any]:
+async def rpc(
+    env: Env, method: str, *, auth: dict[str, str] = AUTH, **params: Any
+) -> dict[str, Any]:
     response = await env.http.post(
         "/payments/payme", json={"id": 1, "method": method, "params": params}, headers=auth
     )
@@ -106,7 +108,7 @@ async def test_payme_rejects_a_wrong_key(env: Env) -> None:
     _, order_id = await order(env, PaymentProvider.PAYME)
     wrong = {"Authorization": "Basic " + base64.b64encode(b"Paycom:nope").decode()}
     body = await rpc(
-        env, "CheckPerformTransaction", wrong, amount=START_TIYIN, account=account(order_id)
+        env, "CheckPerformTransaction", auth=wrong, amount=START_TIYIN, account=account(order_id)
     )
     assert body["error"]["code"] == -32504
 
@@ -128,7 +130,7 @@ async def test_payme_checks_order_and_amount(env: Env) -> None:
 async def test_payme_full_payment_credits_once_and_notifies(env: Env) -> None:
     inviter, _ = await order(env, PaymentProvider.PAYME)
     user_id, order_id = await order(env, PaymentProvider.PAYME, referrer_id=inviter)
-    params = {"id": "payme-tx-1", "time": 1_764_158_400_000, "amount": START_TIYIN}
+    params: dict[str, Any] = {"id": "payme-tx-1", "time": 1_764_158_400_000, "amount": START_TIYIN}
 
     created = await rpc(env, "CreateTransaction", **params, account=account(order_id))
     again = await rpc(env, "CreateTransaction", **params, account=account(order_id))
@@ -139,7 +141,8 @@ async def test_payme_full_payment_credits_once_and_notifies(env: Env) -> None:
     repeated = await rpc(env, "PerformTransaction", id="payme-tx-1")
     checked = await rpc(env, "CheckTransaction", id="payme-tx-1")
     cancel = await rpc(env, "CancelTransaction", id="payme-tx-1", reason=5)
-    statement = await rpc(env, "GetStatement", **{"from": 0, "to": 2_000_000_000_000})
+    period: dict[str, Any] = {"from": 0, "to": 2_000_000_000_000}
+    statement = await rpc(env, "GetStatement", **period)
 
     assert created["result"]["state"] == 1
     assert created["result"]["transaction"] == str(order_id)

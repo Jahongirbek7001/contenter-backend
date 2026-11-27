@@ -15,6 +15,7 @@ from app.domain.credits.service import refund_generation
 from app.domain.generations.jobs import job_for, job_id
 from app.domain.generations.start import NotRerunnableError, UserBlockedError, rerun_generation
 from app.domain.talking.script import Script
+from app.domain.users import display_name
 from app.models import CreditLedgerEntry, Generation, ScriptStyle, TrendTemplate, User
 from app.models.enums import GenerationStatus, LedgerKind, Product, Resolution
 
@@ -27,6 +28,7 @@ class GenerationRow(BaseModel):
     id: int
     customer_id: int
     telegram_id: int
+    customer_name: str
     product: Product
     resolution: Resolution
     status: GenerationStatus
@@ -59,7 +61,7 @@ async def list_generations(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[GenerationRow]:
     query = (
-        select(Generation, User.telegram_id, TrendTemplate.title_uz, ScriptStyle.title_uz)
+        select(Generation, User, TrendTemplate.title_uz, ScriptStyle.title_uz)
         .join(User, User.id == Generation.user_id)
         .outerjoin(TrendTemplate, TrendTemplate.id == Generation.template_id)
         .outerjoin(ScriptStyle, ScriptStyle.id == Generation.style_id)
@@ -76,12 +78,13 @@ async def list_generations(
 
 
 def _row(
-    generation: Generation, telegram_id: int, trend_title: str | None, style_title: str | None
+    generation: Generation, user: User, trend_title: str | None, style_title: str | None
 ) -> GenerationRow:
     return GenerationRow(
         id=generation.id,
         customer_id=generation.user_id,
-        telegram_id=telegram_id,
+        telegram_id=user.telegram_id,
+        customer_name=display_name(user),
         product=generation.product,
         resolution=generation.resolution,
         status=generation.status,
@@ -206,7 +209,7 @@ async def rerun(
 async def _detail(session: SessionDep, generation_id: int) -> GenerationDetail:
     row = (
         await session.execute(
-            select(Generation, User.telegram_id, TrendTemplate.title_uz, ScriptStyle.title_uz)
+            select(Generation, User, TrendTemplate.title_uz, ScriptStyle.title_uz)
             .join(User, User.id == Generation.user_id)
             .outerjoin(TrendTemplate, TrendTemplate.id == Generation.template_id)
             .outerjoin(ScriptStyle, ScriptStyle.id == Generation.style_id)
