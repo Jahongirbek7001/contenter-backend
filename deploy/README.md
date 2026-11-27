@@ -1,183 +1,121 @@
-# Production: Contabo VPS
+# Production: Contabo VPS (umumiy server)
 
-Serverda bitta `docker compose` ishlaydi: **Caddy** (HTTPS) → **api**, hamda **bot**, **worker**, **postgres**, **redis**. Sayt, admin kabinet va mini ilova Vercel'da (`contentor.wtf`), API esa shu serverda (`api.contentor.wtf`).
+Server boshqa loyihalar bilan umumiy: nginx 80/443 da (doctr, tabib.today), Docker'da capsula-api (8000) va tablet-today (3001). Contentor ularga tegmaydi:
 
-Buyruqlarni Termius'da navbat bilan bajaring. `<...>` joylarga o'z qiymatingizni yozing.
+- alohida compose loyiha `contentor`, papka `/opt/contentor`;
+- API faqat `127.0.0.1:8100` da, internetga mavjud nginx orqali chiqadi (`api.contentor.wtf`);
+- o'z Postgres va Redis konteynerlari, port ochmaydi;
+- worker xotirasi 2 GB bilan cheklangan.
 
----
+Sayt, admin kabinet va mini ilova Vercel'da (`contentor.wtf`).
+
+Buyruqlarni root sifatida, navbat bilan bajaring. `<...>` joylarga o'z qiymatingizni yozing.
 
 ## 0. Oldindan
+- DNS: `api` → A yozuv → server IP. Tekshirish: `dig +short api.contentor.wtf` IP'ni ko'rsatsin.
+- Lokal bot o'chiq bo'lsin: bitta token bilan bot faqat bitta joyda ishlaydi.
 
-- Domen registratorida **`api` uchun A yozuv** → server IP. Tekshirish (kompyuteringizda): `nslookup api.contentor.wtf` IP'ni ko'rsatishi kerak.
-- Lokal bot o'chiq bo'lsin: bitta token bilan bot faqat bitta joyda ishlay oladi.
-
-## 1. Alohida foydalanuvchi (root ostida ishlamaymiz)
-
-Termius'da Contabo bergan root bilan kiring:
-
+## 1. Swap (serverda yo'q; barcha loyihalar uchun xavfsizlik zaxirasi)
 ```bash
-adduser deploy                       # parol so'raydi — kuchli parol qo'ying (sudo uchun)
-usermod -aG sudo deploy
-id deploy                            # uid=1000 bo'lishi kerak; boshqa raqam chiqsa, menga ayting
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+swapon --show
 ```
 
-SSH kalitni `deploy` ga ko'chiring:
-
+## 2. Kod (GitHub deploy key, faqat o'qish)
 ```bash
-mkdir -p /home/deploy/.ssh
-cp /root/.ssh/authorized_keys /home/deploy/.ssh/
-chown -R deploy:deploy /home/deploy/.ssh
-chmod 700 /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys
+ssh-keygen -t ed25519 -C contentor-server -f /root/.ssh/github_contentor -N ""
+cat /root/.ssh/github_contentor.pub
 ```
-
-> Root'ga parol bilan kirgan bo'lsangiz, `/root/.ssh/authorized_keys` bo'lmaydi. Unda Termius'da: **Keychain → kalitingiz → Export to Host** → `deploy` foydalanuvchisini tanlang.
-
-Termius'da **yangi host** yarating: `deploy@<IP>`, shu kalit bilan. **Yangi oynada kirib ko'ring.** Kirish ishlagandan keyingina 2-qadamga o'ting, root oynasini yopmang.
-
-## 2. SSH'ni yopish (parol va root kirishi o'chadi)
-
-`deploy` oynasida:
-
+Chiqqan qatorni GitHub'da qo'shing: **contenter-backend → Settings → Deploy keys → Add deploy key** ("Allow write access" belgilanmasin).
 ```bash
-sudo tee /etc/ssh/sshd_config.d/10-contentor.conf >/dev/null <<'EOF'
-PermitRootLogin no
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-EOF
-sudo sshd -t && sudo systemctl restart ssh
-```
-
-Yana bir yangi oynada `deploy@<IP>` bilan kirib ko'ring. Ishlasa, root oynasini yopsangiz bo'ladi.
-
-## 3. Tizim: yangilanish, firewall, swap, vaqt zonasi
-
-```bash
-sudo apt update && sudo apt -y upgrade
-sudo apt -y install ufw fail2ban unattended-upgrades git
-sudo ufw allow OpenSSH && sudo ufw allow 80/tcp && sudo ufw allow 443
-sudo ufw --force enable
-sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile
-sudo mkswap /swapfile && sudo swapon /swapfile
-echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-sudo timedatectl set-timezone Asia/Tashkent
-```
-
-## 4. Docker
-
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker deploy
-exit
-```
-
-Qayta kiring (guruh o'zgarishi kuchga kirishi uchun) va tekshiring: `docker run --rm hello-world`.
-
-## 5. Kod (GitHub deploy key, faqat o'qish)
-
-```bash
-ssh-keygen -t ed25519 -C contentor-server -f ~/.ssh/github_backend -N ""
-cat ~/.ssh/github_backend.pub
-```
-
-Chiqqan qatorni GitHub'da qo'shing: **contenter-backend → Settings → Deploy keys → Add deploy key**, "Allow write access" belgilanmasin.
-
-```bash
-cat >> ~/.ssh/config <<'EOF'
-Host github.com
-  IdentityFile ~/.ssh/github_backend
+cat >> /root/.ssh/config <<'EOF'
+Host github-contentor
+  HostName github.com
+  User git
+  IdentityFile /root/.ssh/github_contentor
   IdentitiesOnly yes
 EOF
-sudo mkdir -p /opt/contentor && sudo chown deploy:deploy /opt/contentor
-git clone -b s4/payments git@github.com:Jahongirbek7001/contenter-backend.git /opt/contentor/backend
+mkdir -p /opt/contentor/backups
+git clone -b s4/payments github-contentor:Jahongirbek7001/contenter-backend.git /opt/contentor/backend
 cd /opt/contentor/backend
 ```
+`github-contentor` taxallusi boshqa loyihalarning GitHub kalitlariga xalal bermaydi.
 
-> PR'lar `main` ga merge bo'lgach: `git switch main && git pull`.
-
-## 6. Maxfiy sozlamalar
-
+## 3. Maxfiy sozlamalar
 ```bash
+cd /opt/contentor/backend
 cp deploy/production.env.example .env
 chmod 600 .env
-openssl rand -hex 24          # baza paroli — nusxa oling
+openssl rand -hex 24
 nano .env
 ```
-
-- `POSTGRES_PASSWORD` va `DATABASE_URL` ichidagi parol **bir xil** bo'lsin (yuqoridagi `openssl` natijasi).
+- `POSTGRES_PASSWORD` va `DATABASE_URL` ichidagi parol bir xil bo'lsin (`openssl` natijasi).
 - `GEMINI_API_KEY`, `GCP_PROJECT_ID`, `TELEGRAM_BOT_TOKEN` — lokal `.env` dagi qiymatlar.
-- `SUPPORT_CONTACT` — to'lov bo'yicha murojaat uchun Telegram username (masalan `@contentor_support`).
-- Payme/Click maydonlari ID'lar kelguncha bo'sh qoladi.
+- `SUPPORT_CONTACT` — to'lov bo'yicha murojaat uchun Telegram username.
+- Payme/Click maydonlari ID'lar kelguncha bo'sh.
 
-Google service account JSON: Termius **SFTP** bilan kompyuteringizdagi `backend/credentials/` ichidagi faylni serverga yuklang, nomi aynan shunday bo'lsin:
-
-```
-/opt/contentor/backend/credentials/service-account.json
-```
-
+Google service account JSON'ni Termius **SFTP** bilan shu nom bilan yuklang: `/opt/contentor/backend/credentials/service-account.json`
 ```bash
-chmod 700 credentials && chmod 600 credentials/service-account.json
+mkdir -p /opt/contentor/backend/credentials
+# fayl yuklangandan keyin (konteyner uid 1000 bilan o'qiydi):
+chown -R 1000:1000 /opt/contentor/backend/credentials
+chmod 700 /opt/contentor/backend/credentials
+chmod 600 /opt/contentor/backend/credentials/service-account.json
 ```
 
-## 7. Ishga tushirish
-
+## 4. Ishga tushirish
 ```bash
+cd /opt/contentor/backend
 docker compose -f compose.prod.yml up -d --build
 docker compose -f compose.prod.yml ps
+curl -s http://127.0.0.1:8100/health
 ```
+Birinchi build 5–15 daqiqa. `migrate` — **Exited (0)**, qolganlari — **Up**, `curl` — `{"status":"ok"}`.
 
-Birinchi build 5–10 daqiqa oladi. `migrate` **exited (0)**, qolganlari **running** bo'lishi kerak. Keyin:
-
+## 5. nginx va HTTPS
 ```bash
-curl https://api.contentor.wtf/health          # {"status":"ok"}
-docker compose -f compose.prod.yml logs --tail 50 api bot worker
+cp /opt/contentor/backend/deploy/nginx-api.conf /etc/nginx/sites-available/api.contentor.wtf
+ln -s /etc/nginx/sites-available/api.contentor.wtf /etc/nginx/sites-enabled/
+nginx -t
+systemctl reload nginx
+certbot --version || apt install -y certbot python3-certbot-nginx
+certbot --nginx -d api.contentor.wtf --redirect
+curl -s https://api.contentor.wtf/health
 ```
+`nginx -t` xato bersa, `reload` qilmang — boshqa saytlar ishlashda davom etadi; xatoni menga yuboring.
 
-`curl` sertifikat xatosi bersa, DNS hali yetib bormagan: `docker compose -f compose.prod.yml logs caddy`.
-
-## 8. Admin akkaunt
-
+## 6. Admin akkaunt
 ```bash
+cd /opt/contentor/backend
 docker compose -f compose.prod.yml run --rm api python -m scripts.create_admin <email> --role owner
 ```
+Parol bir marta chiqadi — darhol saqlang. Kirish: `https://contentor.wtf/admin`.
 
-Parol **bir marta** chiqadi: darhol parol menejeriga saqlang. Kirish: `https://contentor.wtf/admin`.
-
-## 9. Kundalik backup
-
+## 7. Kundalik backup
 ```bash
-chmod +x deploy/backup.sh
-deploy/backup.sh                                   # bir marta qo'lda sinang
+chmod +x /opt/contentor/backend/deploy/backup.sh
+/opt/contentor/backend/deploy/backup.sh
 (crontab -l 2>/dev/null; echo '30 3 * * * /opt/contentor/backend/deploy/backup.sh >> /opt/contentor/backups/backup.log 2>&1') | crontab -
 ```
 
-Dump'lar `/opt/contentor/backups` da 14 kun turadi. Server tashqarisiga nusxa (rclone → bulut) keyingi bosqichda sozlanadi.
+## 8. BotFather
+- `/setdomain` → bot → `contentor.wtf`.
+- Bot Settings → Menu Button → `https://contentor.wtf/app`.
 
-## 10. BotFather
-
-- `/setdomain` → botni tanlang → `contentor.wtf` (saytda Telegram orqali kirish uchun).
-- `/mybots` → bot → **Bot Settings → Menu Button** → `https://contentor.wtf/app` (mini ilova).
-
-## Yangilash (yangi kod chiqqanda)
-
+## Yangilash
 ```bash
-cd /opt/contentor/backend
-git pull
-docker compose -f compose.prod.yml up -d --build
+cd /opt/contentor/backend && git pull && docker compose -f compose.prod.yml up -d --build
 ```
-
-Migratsiyalar `migrate` xizmatida avtomatik qo'llanadi.
 
 ## Foydali buyruqlar
-
 ```bash
-docker compose -f compose.prod.yml logs -f worker          # generatsiyalarni kuzatish
+cd /opt/contentor/backend
+docker compose -f compose.prod.yml logs -f --tail 100 worker
+docker compose -f compose.prod.yml logs --tail 100 api bot
 docker compose -f compose.prod.yml restart bot
-docker compose -f compose.prod.yml exec postgres psql -U contentor
-docker stats --no-stream                                  # xotira va CPU
-```
-
-Backup'dan tiklash (ehtiyot bo'ling, joriy bazani almashtiradi):
-
-```bash
-docker compose -f compose.prod.yml exec -T postgres pg_restore -U contentor -d contentor --clean --if-exists < /opt/contentor/backups/<fayl>.dump
+docker stats --no-stream
 ```
