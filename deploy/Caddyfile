@@ -1,0 +1,17 @@
+# HTTPS certificate for the API is issued and renewed automatically (Let's Encrypt).
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# Selfies are at most 10 MB; trend previews uploaded from the admin cabinet are larger.
+	request_body {
+		max_size 60MB
+	}
+
+	reverse_proxy api:8000
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+}
