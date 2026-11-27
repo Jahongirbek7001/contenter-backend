@@ -287,3 +287,25 @@ async def test_click_failed_payment_cancels_the_order(env: Env) -> None:
     assert later["error"] == -9
     assert (await payment(env, order_id)).status is PaymentStatus.CANCELLED
     assert await available(env, user_id) == 0
+
+
+def test_empty_merchant_settings_keep_providers_off() -> None:
+    from pydantic import SecretStr
+
+    from app.core.config import Settings
+
+    settings = Settings.model_construct(
+        site_url="https://contentor.wtf/",
+        payme_merchant_id="m",
+        payme_key=SecretStr(""),
+        payme_test=True,
+        click_service_id="",
+        click_merchant_id="",
+        click_secret_key=None,
+    )
+    gateways = Gateways.from_settings(settings)
+    assert (gateways.payme, gateways.click, gateways.site_url) == (
+        None,
+        None,
+        "https://contentor.wtf",
+    )

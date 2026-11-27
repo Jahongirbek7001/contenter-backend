@@ -37,17 +37,21 @@ class Gateways:
     def from_settings(cls, settings: Settings) -> "Gateways":
         """A provider stays off until all of its merchant credentials are set."""
         gateways = cls(site_url=settings.site_url.rstrip("/"))
-        if settings.payme_merchant_id and settings.payme_key:
+        payme_key = settings.payme_key.get_secret_value() if settings.payme_key else ""
+        click_key = (
+            settings.click_secret_key.get_secret_value() if settings.click_secret_key else ""
+        )
+        if settings.payme_merchant_id and payme_key:
             gateways = replace(
                 gateways,
                 payme=PaymeCheckout(settings.payme_merchant_id, settings.payme_test),
-                payme_key=settings.payme_key.get_secret_value(),
+                payme_key=payme_key,
             )
-        if settings.click_service_id and settings.click_merchant_id and settings.click_secret_key:
+        if settings.click_service_id and settings.click_merchant_id and click_key:
             gateways = replace(
                 gateways,
                 click=ClickCheckout(settings.click_service_id, settings.click_merchant_id),
-                click_secret_key=settings.click_secret_key.get_secret_value(),
+                click_secret_key=click_key,
             )
         return gateways
 
